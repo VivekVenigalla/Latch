@@ -69,3 +69,117 @@ enum LatchFont {
     /// AppKit twin of `timer`, for the rendered menu bar glyph.
     static let menuBarNSFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
 }
+
+// MARK: - Components
+
+struct KeycapBadge: View {
+    let key: String
+
+    init(_ key: String) { self.key = key }
+
+    var body: some View {
+        Text(key)
+            .font(LatchFont.keycap)
+            .foregroundStyle(Tokens.keycapText)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1.5)
+            .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Tokens.keycapFill))
+    }
+}
+
+/// Small-caps section label, e.g. `NEXT`, `LATCHED`.
+struct SectionLabel: View {
+    let text: String
+    var color: Color = Tokens.silver
+
+    init(_ text: String, color: Color = Tokens.silver) {
+        self.text = text
+        self.color = color
+    }
+
+    var body: some View {
+        Text(text)
+            .font(LatchFont.label)
+            .kerning(1.1)
+            .foregroundStyle(color)
+    }
+}
+
+/// A "machined slot" container for secondary metadata.
+struct RecessedWell<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: Tokens.wellCornerRadius, style: .continuous)
+                    .fill(Tokens.wellFill))
+            .overlay(
+                RoundedRectangle(cornerRadius: Tokens.wellCornerRadius, style: .continuous)
+                    .strokeBorder(Tokens.wellBorder, lineWidth: 1))
+    }
+}
+
+struct Hairline: View {
+    var body: some View {
+        Rectangle().fill(Tokens.divider).frame(height: 1)
+    }
+}
+
+struct PriorityDot: View {
+    let band: PriorityBand
+
+    var body: some View {
+        Circle()
+            .fill(Tokens.color(for: band))
+            .frame(width: 6, height: 6)
+    }
+}
+
+/// Every action shows its hotkey as a trailing keycap: `Latch [↩]`.
+struct KeycapButtonStyle: ButtonStyle {
+    var prominent = false
+    var active = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(LatchFont.button)
+            .foregroundStyle(prominent || active ? Tokens.crispWhite : Tokens.silver)
+            .padding(.leading, 9)
+            .padding(.trailing, 5)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(fill(pressed: configuration.isPressed)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(active ? Tokens.emerald.opacity(0.5) : Tokens.perimeter, lineWidth: 1))
+            .contentShape(Rectangle())
+    }
+
+    private func fill(pressed: Bool) -> Color {
+        let base = prominent ? 0.10 : 0.03
+        return Color.white.opacity(pressed ? base + 0.06 : base)
+    }
+}
+
+struct KeycapButton: View {
+    let title: String
+    let key: String
+    var prominent = false
+    var active = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title).lineLimit(1)
+                KeycapBadge(key)
+            }
+        }
+        .buttonStyle(KeycapButtonStyle(prominent: prominent, active: active))
+    }
+}
