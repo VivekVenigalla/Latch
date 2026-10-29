@@ -26,6 +26,8 @@ struct BlindCaptureView: View {
                 .onSubmit(onSubmit)
                 .onExitCommand(perform: onCancel)
 
+            TokenBadges(parsed: model.parsed)
+
             KeycapBadge("↩")
         }
         .padding(.horizontal, 16)
@@ -44,6 +46,46 @@ struct BlindCaptureView: View {
         .onAppear { focused = true }
         .onChange(of: model.focusToken) {
             DispatchQueue.main.async { focused = true }
+        }
+    }
+}
+
+private struct TokenBadges: View {
+    let parsed: CaptureParse
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let duration = parsed.durationSec {
+                Text("⏱ \(TimeFormat.duration(duration))")
+                    .font(LatchFont.keycap)
+                    .monospacedDigit()
+                    .foregroundStyle(Tokens.crispWhite)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.white.opacity(0.08)))
+            }
+            if let priority = parsed.priority {
+                Circle()
+                    .fill(color(for: priority))
+                    .frame(width: 7, height: 7)
+                    .help("Priority: \(priority.rawValue)")
+            }
+            if let list = parsed.listName {
+                Text("#\(list)")
+                    .font(LatchFont.keycap)
+                    .foregroundStyle(Tokens.silver)
+                    .lineLimit(1)
+                    .frame(maxWidth: 90)
+            }
+        }
+        .animation(Tokens.snap, value: parsed)
+    }
+
+    private func color(for priority: CapturePriority) -> Color {
+        switch priority {
+        case .high: Tokens.coral
+        case .med: Tokens.amber
+        case .low: Tokens.silver
         }
     }
 }
