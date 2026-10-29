@@ -7,6 +7,8 @@ public struct LatchMetadata: Equatable, Sendable {
     public var elapsedSec: Int?
     public var context: String?
     public var deferredCount: Int?
+    /// Lifetime Drift Guard time: seconds spent away from the pinned app while latched.
+    public var driftSec: Int?
     public var lastLatched: Date?
 
     public init(
@@ -14,17 +16,20 @@ public struct LatchMetadata: Equatable, Sendable {
         elapsedSec: Int? = nil,
         context: String? = nil,
         deferredCount: Int? = nil,
+        driftSec: Int? = nil,
         lastLatched: Date? = nil
     ) {
         self.durationSec = durationSec
         self.elapsedSec = elapsedSec
         self.context = context
         self.deferredCount = deferredCount
+        self.driftSec = driftSec
         self.lastLatched = lastLatched
     }
 
     public var isEmpty: Bool {
-        durationSec == nil && elapsedSec == nil && context == nil && deferredCount == nil && lastLatched == nil
+        durationSec == nil && elapsedSec == nil && context == nil && deferredCount == nil
+            && driftSec == nil && lastLatched == nil
     }
 }
 
@@ -49,6 +54,7 @@ public struct ParsedNotes: Equatable, Sendable {
 ///     elapsed_sec: 420
 ///     context: Check line 142 in AuthController.swift
 ///     deferred_count: 1
+///     drift_sec: 95
 ///     last_latched: 2026-10-29T14:30:00Z
 ///
 /// Parsing is forgiving: unknown keys are ignored, unparseable values become `nil`, and the
@@ -62,6 +68,7 @@ public enum LatchMetadataParser {
         case elapsedSec = "elapsed_sec"
         case context
         case deferredCount = "deferred_count"
+        case driftSec = "drift_sec"
         case lastLatched = "last_latched"
     }
 
@@ -114,6 +121,7 @@ public enum LatchMetadataParser {
         if let v = metadata.elapsedSec { lines.append("\(Key.elapsedSec.rawValue): \(v)") }
         if let v = metadata.context { lines.append("\(Key.context.rawValue): \(singleLine(v))") }
         if let v = metadata.deferredCount { lines.append("\(Key.deferredCount.rawValue): \(v)") }
+        if let v = metadata.driftSec { lines.append("\(Key.driftSec.rawValue): \(v)") }
         if let v = metadata.lastLatched { lines.append("\(Key.lastLatched.rawValue): \(v.formatted(.iso8601))") }
         return lines.joined(separator: "\n")
     }
@@ -134,6 +142,7 @@ public enum LatchMetadataParser {
         case .durationSec: metadata.durationSec = nonNegativeInt(value)
         case .elapsedSec: metadata.elapsedSec = nonNegativeInt(value)
         case .deferredCount: metadata.deferredCount = nonNegativeInt(value)
+        case .driftSec: metadata.driftSec = nonNegativeInt(value)
         case .context: metadata.context = value.isEmpty ? nil : value
         case .lastLatched: metadata.lastLatched = try? Date(value, strategy: .iso8601)
         }

@@ -143,9 +143,20 @@ final class LatchMetadataParserTests: XCTestCase {
         XCTAssertEqual(block, "---LATCH---\ncontext: line one line two")
     }
 
+    func testDriftSec() {
+        let parsed = LatchMetadataParser.parse("---LATCH---\nduration_sec: 600\ndrift_sec: 95\n")
+        XCTAssertEqual(parsed.metadata, LatchMetadata(durationSec: 600, driftSec: 95))
+        XCTAssertEqual(
+            LatchMetadataParser.serialize(LatchMetadata(deferredCount: 1, driftSec: 95, lastLatched: sampleDate)),
+            "---LATCH---\ndeferred_count: 1\ndrift_sec: 95\nlast_latched: 2026-10-29T14:30:00Z")
+        XCTAssertFalse(LatchMetadata(driftSec: 0).isEmpty)
+        XCTAssertNil(LatchMetadataParser.parse("---LATCH---\ndrift_sec: -3").metadata?.driftSec)
+    }
+
     func testRoundTrip() {
         let metadata = LatchMetadata(
-            durationSec: 1500, elapsedSec: 420, context: "Fix segfault", deferredCount: 3, lastLatched: sampleDate)
+            durationSec: 1500, elapsedSec: 420, context: "Fix segfault", deferredCount: 3, driftSec: 95,
+            lastLatched: sampleDate)
         let written = LatchMetadataParser.write(metadata, into: "Some notes")
         let parsed = LatchMetadataParser.parse(written)
         XCTAssertEqual(parsed.userNotes, "Some notes")
