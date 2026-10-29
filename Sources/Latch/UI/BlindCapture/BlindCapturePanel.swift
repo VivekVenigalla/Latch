@@ -59,3 +59,71 @@ final class BlindCaptureModel: ObservableObject {
         focusToken += 1
     }
 }
+
+/// Owns the panel lifecycle: ⌘⇧Space → type → ↩ saves to Reminders, Esc / click-away discards.
+@MainActor
+final class BlindCaptureController {
+    private let panel = BlindCapturePanel()
+    private let model = BlindCaptureModel()
+    private let eventKit: EventKitService
+
+    init(eventKit: EventKitService) {
+        self.eventKit = eventKit
+        let root = BlindCaptureView(
+            model: model,
+            onSubmit: { [weak self] in self?.submit() },
+            onCancel: { [weak self] in self?.hide() })
+        let hosting = NSHostingView(rootView: root)
+        hosting.frame = NSRect(origin: .zero, size: BlindCapturePanel.size)
+        panel.contentView = hosting
+        panel.onResignKey = { [weak self] in self?.hide() }
+        panel.onCancel = { [weak self] in self?.hide() }
+    }
+
+    func toggle() {
+        panel.isVisible ? hide() : show()
+    }
+
+    func show() {
+        guard eventKit.remindersAuthorized else {
+            NSSound.beep()
+            return
+        }
+        model.prepareForShow(knownLists: eventKit.reminderLists().map(\.title))
+        position()
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    func hide() {
+        guard panel.isVisible else { return }
+        panel.orderOut(nil)
+        model.text = ""
+    }
+
+    private func submit() {
+        let capture = BlindCaptureNLPParser.parse(model.text, knownLists: model.knownLists)
+        guard !capture.title.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        do {
+            try eventKit.createReminder(from: capture)
+            hide()
+        } catch {
+            NSLog("Latch: blind capture failed: \(error.localizedDescription)")
+            NSSound.beep()
+        }
+    }
+
+    /// Horizontally centred, upper third of the screen under the mouse (Spotlight-style).
+    private func position() {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        guard let frame = screen?.visibleFrame else { return }
+        let size = BlindCapturePanel.size
+        let origin = NSPoint(
+            x: frame.midX - size.width / 2,
+            y: frame.minY + frame.height * 0.70 - size.height / 2)
+        panel.setFrame(NSRect(origin: origin, size: size), display: false)
+    }
+}
