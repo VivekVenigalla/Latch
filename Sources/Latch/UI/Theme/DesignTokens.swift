@@ -80,18 +80,51 @@ enum LatchFont {
 
 // MARK: - Components
 
+private struct KeycapPressedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Set by `KeycapButtonStyle` so nested keycaps travel down when their button is pressed.
+    var keycapPressed: Bool {
+        get { self[KeycapPressedKey.self] }
+        set { self[KeycapPressedKey.self] = newValue }
+    }
+}
+
+/// A raised physical key: lit top edge, dark skirt underneath, and 1pt of travel when pressed.
 struct KeycapBadge: View {
     let key: String
+    @Environment(\.keycapPressed) private var pressed
 
     init(_ key: String) { self.key = key }
+
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: 4, style: .continuous) }
 
     var body: some View {
         Text(key)
             .font(LatchFont.keycap)
-            .foregroundStyle(Tokens.keycapText)
+            .foregroundStyle(pressed ? Tokens.silver : Tokens.keycapText)
+            .frame(minWidth: 10)
             .padding(.horizontal, 4)
-            .padding(.vertical, 1.5)
-            .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Tokens.keycapFill))
+            .padding(.top, 1)
+            .padding(.bottom, 1.5)
+            .background {
+                ZStack {
+                    shape.fill(Tokens.keycapFill)
+                    shape.fill(LinearGradient(
+                        colors: [Color.white.opacity(0.07), .clear], startPoint: .top, endPoint: .bottom))
+                    shape.strokeBorder(LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.02)],
+                        startPoint: .top, endPoint: .bottom), lineWidth: 0.75)
+                }
+            }
+            .background {
+                // The skirt: visible below the cap at rest, hidden when the key is down.
+                shape.fill(Color.black.opacity(0.55)).offset(y: pressed ? 0 : 1)
+            }
+            .offset(y: pressed ? 1 : 0)
+            .animation(.spring(response: 0.12, dampingFraction: 0.9), value: pressed)
     }
 }
 
@@ -166,6 +199,7 @@ struct KeycapButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .strokeBorder(active ? Tokens.emerald.opacity(0.5) : Tokens.perimeter, lineWidth: 1))
             .contentShape(Rectangle())
+            .environment(\.keycapPressed, configuration.isPressed)
     }
 
     private func fill(pressed: Bool) -> Color {
