@@ -12,7 +12,10 @@ struct RootPopoverView: View {
             case .permissionsRequired:
                 PermissionsView()
                     .transition(.opacity)
-            case .unlatchedSelector, .latchedFocus, .stateDumpGate:
+            case let .unlatchedSelector(candidate, filterMode):
+                UnlatchedCardView(candidate: candidate, filterMode: filterMode)
+                    .transition(.opacity)
+            case .latchedFocus, .stateDumpGate:
                 // Interim readout until each state gets its own view.
                 Text(engine.glanceText)
                     .font(LatchFont.timer)
