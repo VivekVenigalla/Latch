@@ -22,6 +22,8 @@ final class LatchEngine: ObservableObject {
     /// UserDefaults key: when `true`, hitting 00:00 goes straight to the state-dump gate
     /// instead of counting up in amber overtime ("Soft Box", the default).
     static let hardStopDefaultsKey = "LatchHardStop"
+    /// UserDefaults key: Drift Guard grace period in seconds (default 20).
+    static let driftGraceDefaultsKey = "LatchDriftGraceSeconds"
 
     static let durationStepSeconds = 300
     static let minDurationSeconds = 300
@@ -135,6 +137,11 @@ final class LatchEngine: ObservableObject {
     }
 
     private var hardStopOnExpiry: Bool { UserDefaults.standard.bool(forKey: Self.hardStopDefaultsKey) }
+
+    private var driftGraceSeconds: TimeInterval {
+        (UserDefaults.standard.object(forKey: Self.driftGraceDefaultsKey) as? NSNumber)?.doubleValue
+            ?? DriftLedger.defaultGraceSeconds
+    }
 
     // MARK: - Lifecycle
 
@@ -255,6 +262,7 @@ final class LatchEngine: ObservableObject {
             allocatedSeconds: clamp.allocatedSeconds,
             clampReason: clamp.reason,
             pinnedApp: anchor.captureFrontmost(),
+            driftGraceSeconds: driftGraceSeconds,
             now: now)
 
         sessionSkipCounts.removeAll()
