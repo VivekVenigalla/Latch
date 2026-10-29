@@ -50,6 +50,8 @@ struct LatchedFocusView: View {
                     }
                     .help(context)
                 }
+
+                MicroStepScratchpad()
             }
             .padding(.horizontal, 14)
             .padding(.top, 10)
@@ -75,5 +77,54 @@ struct LatchedFocusView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
         }
+    }
+}
+
+/// Up to three ephemeral micro-steps; never persisted.
+private struct MicroStepScratchpad: View {
+    @EnvironmentObject private var engine: LatchEngine
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(Array(engine.microSteps.enumerated()), id: \.element.id) { index, step in
+                Button { engine.toggleMicroStep(step.id) } label: {
+                    HStack(spacing: 6) {
+                        Text(step.isDone ? "▪" : "▫")
+                            .foregroundStyle(step.isDone ? Tokens.emerald : Tokens.keycapText)
+                        Text("\(index + 1). \(step.text)")
+                            .strikethrough(step.isDone, color: Tokens.keycapText)
+                            .foregroundStyle(step.isDone ? Tokens.keycapText : Tokens.silver)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 0)
+                    }
+                    .font(LatchFont.meta)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if engine.microSteps.count < LatchEngine.maxMicroSteps {
+                HStack(spacing: 6) {
+                    Text("+")
+                        .font(LatchFont.meta)
+                        .foregroundStyle(Tokens.keycapText)
+                    TextField(
+                        "",
+                        text: $draft,
+                        prompt: Text("micro-step \(engine.microSteps.count + 1)/\(LatchEngine.maxMicroSteps)")
+                            .foregroundStyle(Tokens.keycapText.opacity(0.7)))
+                        .textFieldStyle(.plain)
+                        .font(LatchFont.meta)
+                        .foregroundStyle(Tokens.crispWhite)
+                        .onSubmit {
+                            engine.addMicroStep(draft)
+                            draft = ""
+                        }
+                }
+            }
+        }
+        .animation(Tokens.snap, value: engine.microSteps)
     }
 }
