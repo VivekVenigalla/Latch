@@ -31,6 +31,9 @@ struct LatchedFocusView: View {
                     SectionLabel(statusLabel, color: tint)
                         .help(session.clampReason ?? "")
                     Spacer(minLength: 4)
+                    if let pinned = session.pinnedApp {
+                        RefocusPill(pinned: pinned)
+                    }
                 }
 
                 Text(session.task.title)
@@ -77,6 +80,40 @@ struct LatchedFocusView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
         }
+    }
+}
+
+/// `[App Icon] Refocus <AppName> [⌘G]`
+private struct RefocusPill: View {
+    @EnvironmentObject private var engine: LatchEngine
+    let pinned: PinnedApp
+
+    var body: some View {
+        Button { engine.refocusPinnedApp() } label: {
+            HStack(spacing: 5) {
+                if let icon = engine.anchor.icon(for: pinned) {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 13, height: 13)
+                }
+                Text("Refocus \(pinned.name)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Tokens.silver)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                KeycapBadge("⌘G")
+            }
+            .padding(.leading, 5)
+            .padding(.trailing, 3)
+            .padding(.vertical, 2.5)
+            .background(Capsule().fill(Color.white.opacity(0.04)))
+            .overlay(Capsule().strokeBorder(Tokens.perimeter, lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("g", modifiers: .command)
+        .help("Snap back to \(pinned.name)")
     }
 }
 
