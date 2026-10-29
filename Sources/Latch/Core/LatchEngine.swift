@@ -226,6 +226,35 @@ final class LatchEngine: ObservableObject {
         anchor.refocus(pinned)
     }
 
+    /// `Complete [⌘↩]` — valid from focus and from the state-dump gate.
+    func complete() {
+        let session: ActiveSession
+        switch state {
+        case let .latchedFocus(s), let .stateDumpGate(s): session = s
+        default: return
+        }
+        stopTicker()
+
+        do {
+            try eventKit.updateReminder(id: session.task.id) { reminder in
+                var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
+                metadata.elapsedSec = session.totalElapsedSeconds()
+                reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
+                reminder.isCompleted = true
+            }
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+        if let tick = NSSound(named: "Pop") {
+            tick.volume = 0.35
+            tick.play()
+        }
+        returnToSelector(removing: session.task.id)
+    }
+
     /// `Unlatch [⌘.]` — pauses the clock and forces the state-dump gate.
     func unlatch() {
         guard case var .latchedFocus(session) = state else { return }
