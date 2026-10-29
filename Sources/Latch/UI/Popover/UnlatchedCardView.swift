@@ -9,6 +9,11 @@ struct UnlatchedCardView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let clamp = engine.clampPreview, candidate != nil {
+                ClampBanner(clamp: clamp)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             VStack(alignment: .leading, spacing: 10) {
                 PopoverHeader(label: filterMode == .quick ? "NEXT · QUICK ≤15m" : "NEXT")
 
@@ -49,6 +54,7 @@ struct UnlatchedCardView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
         }
+        .animation(Tokens.snap, value: engine.clampPreview)
     }
 }
 
@@ -125,6 +131,27 @@ private struct DurationStepper: View {
                 .buttonStyle(.plain)
                 .keyboardShortcut("=", modifiers: [])
         }
+    }
+}
+
+private struct ClampBanner: View {
+    let clamp: ClampResult
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Rectangle().fill(Tokens.amber).frame(width: 2, height: 10)
+            Text("CLAMPED · \(TimeFormat.duration(clamp.allocatedSeconds)) until \(clamp.event?.title ?? "Event")")
+                .font(LatchFont.label)
+                .kerning(0.6)
+                .foregroundStyle(Tokens.amber)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Tokens.amber.opacity(0.08))
+        .overlay(alignment: .bottom) { Rectangle().fill(Tokens.amber.opacity(0.25)).frame(height: 1) }
     }
 }
 
