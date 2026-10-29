@@ -149,3 +149,34 @@ struct WindowKeyObserver: NSViewRepresentable {
         }
     }
 }
+
+/// Forwards scroll-wheel ticks as ±1 steps (used for the duration badge).
+struct ScrollWheelCatcher: NSViewRepresentable {
+    let onStep: (Int) -> Void
+
+    func makeNSView(context: Context) -> CatcherView {
+        let view = CatcherView()
+        view.onStep = onStep
+        return view
+    }
+
+    func updateNSView(_ view: CatcherView, context: Context) {
+        view.onStep = onStep
+    }
+
+    final class CatcherView: NSView {
+        var onStep: ((Int) -> Void)?
+        private var accumulator: CGFloat = 0
+        private let threshold: CGFloat = 14
+
+        override func scrollWheel(with event: NSEvent) {
+            accumulator += event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 1 : 10)
+            while abs(accumulator) >= threshold {
+                let step = accumulator > 0 ? 1 : -1
+                onStep?(step)
+                accumulator -= CGFloat(step) * threshold
+            }
+            if event.phase == .ended || event.momentumPhase == .ended { accumulator = 0 }
+        }
+    }
+}

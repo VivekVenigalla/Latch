@@ -106,7 +106,7 @@ private struct CandidateCard: View {
     }
 }
 
-/// `[−] 25m [+]` — adjustable with the keycaps or `-` / `=`, in 5m steps.
+/// `[−] 25m [+]` — adjustable with the keycaps, `-` / `=`, or the scroll wheel, in 5m steps.
 private struct DurationStepper: View {
     @EnvironmentObject private var engine: LatchEngine
 
@@ -119,6 +119,8 @@ private struct DurationStepper: View {
                 .font(LatchFont.timer)
                 .foregroundStyle(Tokens.crispWhite)
                 .frame(minWidth: 34)
+                .overlay(ScrollWheelCatcher { engine.adjustDuration(steps: $0) })
+                .help("Scroll to adjust in 5m steps")
             Button { engine.adjustDuration(steps: 1) } label: { KeycapBadge("+") }
                 .buttonStyle(.plain)
                 .keyboardShortcut("=", modifiers: [])
