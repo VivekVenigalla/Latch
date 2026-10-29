@@ -25,6 +25,8 @@ public struct ActiveSession: Equatable, Sendable {
     public var pinnedApp: PinnedApp?
     /// Set when the session is unlatched; freezes elapsed time for the state-dump gate.
     public var pausedAt: Date?
+    /// Drift Guard: time spent away from `pinnedApp` during this session.
+    public var drift: DriftLedger
 
     public init(
         task: TaskCandidate,
@@ -32,6 +34,7 @@ public struct ActiveSession: Equatable, Sendable {
         allocatedSeconds: Int,
         clampReason: String? = nil,
         pinnedApp: PinnedApp? = nil,
+        driftGraceSeconds: TimeInterval = DriftLedger.defaultGraceSeconds,
         now: Date = .now
     ) {
         self.task = task
@@ -41,6 +44,7 @@ public struct ActiveSession: Equatable, Sendable {
         self.targetEndDate = now.addingTimeInterval(TimeInterval(allocatedSeconds))
         self.clampReason = clampReason
         self.pinnedApp = pinnedApp
+        self.drift = DriftLedger(graceSeconds: driftGraceSeconds)
     }
 
     public var isClamped: Bool { clampReason != nil }
@@ -53,6 +57,11 @@ public struct ActiveSession: Equatable, Sendable {
     /// Lifetime elapsed: previously logged `elapsed_sec` plus this session.
     public func totalElapsedSeconds(at now: Date = .now) -> Int {
         (task.metadata.elapsedSec ?? 0) + sessionElapsedSeconds(at: now)
+    }
+
+    /// Drift accrued this session (frozen once paused).
+    public func driftSeconds(at now: Date = .now) -> Int {
+        Int(drift.totalDriftSeconds(at: pausedAt ?? now).rounded())
     }
 
     /// 1.0 at latch, 0.0 at expiry.

@@ -33,6 +33,18 @@ final class ActiveSessionTests: XCTestCase {
         XCTAssertEqual(session.sessionElapsedSeconds(at: afterSleep.addingTimeInterval(9_999)), 600)
     }
 
+    func testDriftIsTrackedPerSessionAndFreezesOnPause() {
+        let start = Date(timeIntervalSince1970: 1_000)
+        var session = ActiveSession(
+            task: TaskCandidate(id: "t", title: "T"), requestedSeconds: 1500, allocatedSeconds: 1500,
+            driftGraceSeconds: 10, now: start)
+        XCTAssertEqual(session.drift.graceSeconds, 10)
+        session.drift.leave(at: start.addingTimeInterval(60))
+        XCTAssertEqual(session.driftSeconds(at: start.addingTimeInterval(100)), 40)
+        session.pausedAt = start.addingTimeInterval(120)
+        XCTAssertEqual(session.driftSeconds(at: start.addingTimeInterval(9_999)), 60)
+    }
+
     func testProgressRemaining() {
         let session = ActiveSession(task: TaskCandidate(id: "t", title: "T"), requestedSeconds: 1000, allocatedSeconds: 1000)
         XCTAssertEqual(session.progressRemaining(remainingSeconds: 1000), 1)
