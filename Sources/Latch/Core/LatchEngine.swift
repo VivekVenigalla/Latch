@@ -308,6 +308,7 @@ final class LatchEngine: ObservableObject {
             try eventKit.updateReminder(id: session.task.id) { reminder in
                 var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
                 metadata.elapsedSec = session.totalElapsedSeconds()
+                Self.accrueDrift(of: session, into: &metadata)
                 reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
                 reminder.isCompleted = true
             }
@@ -380,10 +381,12 @@ final class LatchEngine: ObservableObject {
             metadata.context = trimmed
             metadata.elapsedSec = session.totalElapsedSeconds()
             metadata.deferredCount = (metadata.deferredCount ?? 0) + 1
+            Self.accrueDrift(of: session, into: &metadata)
         }
         if let index = candidates.firstIndex(where: { $0.id == session.task.id }) {
             candidates[index].metadata.context = trimmed
             candidates[index].metadata.elapsedSec = session.totalElapsedSeconds()
+            Self.accrueDrift(of: session, into: &candidates[index].metadata)
         }
         // Surface something else first; the deferred task comes back on the next cycle.
         sessionSkipCounts[session.task.id, default: 0] += 1
@@ -401,6 +404,13 @@ final class LatchEngine: ObservableObject {
         state = .unlatchedSelector(candidate: nil, filterMode: .all)
         resolve(filter: .all)
         scheduleRefresh(delayNanoseconds: 0)
+    }
+
+    /// Adds this session's drift to the lifetime `drift_sec`; writes nothing for a clean session.
+    private static func accrueDrift(of session: ActiveSession, into metadata: inout LatchMetadata) {
+        let drift = session.driftSeconds()
+        guard drift > 0 else { return }
+        metadata.driftSec = (metadata.driftSec ?? 0) + drift
     }
 
     private func clearDriftReadout() {
