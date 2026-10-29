@@ -3,6 +3,12 @@ import Combine
 import EventKit
 import LatchCore
 
+struct MicroStep: Identifiable, Equatable {
+    let id = UUID()
+    var text: String
+    var isDone = false
+}
+
 /// Deterministic finite-state machine for Latch:
 ///
 ///     permissionsRequired ─grant─▶ unlatchedSelector ─latch─▶ latchedFocus
@@ -20,6 +26,7 @@ final class LatchEngine: ObservableObject {
     static let durationStepSeconds = 300
     static let minDurationSeconds = 300
     static let maxDurationSeconds = 3 * 3600
+    static let maxMicroSteps = 3
 
     @Published private(set) var state: AppState = .permissionsRequired
     /// `targetEndDate.timeIntervalSinceNow`, refreshed every 0.5s while latched. Negative = overtime.
@@ -27,6 +34,7 @@ final class LatchEngine: ObservableObject {
     @Published private(set) var selectedDurationSec = TaskCandidate.defaultDurationSec
     /// Preview of the calendar clamp for the current candidate and selected duration.
     @Published private(set) var clampPreview: ClampResult?
+    @Published private(set) var microSteps: [MicroStep] = []
     @Published private(set) var permissionDenied = false
     @Published private(set) var lastError: String?
 
@@ -211,6 +219,7 @@ final class LatchEngine: ObservableObject {
             now: now)
 
         sessionSkipCounts.removeAll()
+        microSteps.removeAll()
         hasChimed = false
         state = .latchedFocus(activeTask: session)
         startTicker()
@@ -224,6 +233,17 @@ final class LatchEngine: ObservableObject {
     func refocusPinnedApp() {
         guard case let .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
         anchor.refocus(pinned)
+    }
+
+    func addMicroStep(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, microSteps.count < Self.maxMicroSteps else { return }
+        microSteps.append(MicroStep(text: trimmed))
+    }
+
+    func toggleMicroStep(_ id: MicroStep.ID) {
+        guard let index = microSteps.firstIndex(where: { $0.id == id }) else { return }
+        microSteps[index].isDone.toggle()
     }
 
     /// `Complete [⌘↩]` — valid from focus and from the state-dump gate.
@@ -321,6 +341,7 @@ final class LatchEngine: ObservableObject {
 
     private func returnToSelector(removing completedID: String?) {
         if let completedID { candidates.removeAll { $0.id == completedID } }
+        microSteps.removeAll()
         remainingSeconds = 0
         state = .unlatchedSelector(candidate: nil, filterMode: .all)
         resolve(filter: .all)
