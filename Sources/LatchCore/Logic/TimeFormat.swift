@@ -25,3 +25,23 @@ public enum TimeFormat {
         return m == 0 ? "\(h)h" : "\(h)h \(m)m"
     }
 }
+
+/// Text for the menu bar glance pill.
+public enum GlancePill {
+    public static let idle = "[ · ]"
+    public static let maxTitleLength = 22
+
+    public static func latched(remainingSeconds: TimeInterval, title: String) -> String {
+        "[▪] \(TimeFormat.clock(remainingSeconds)) · \(truncate(title))"
+    }
+
+    public static func paused(title: String) -> String {
+        "[▪] ‖ · \(truncate(title))"
+    }
+
+    public static func truncate(_ title: String, max: Int = maxTitleLength) -> String {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > max else { return trimmed }
+        return String(trimmed.prefix(max - 1)).trimmingCharacters(in: .whitespaces) + "…"
+    }
+}

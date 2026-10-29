@@ -15,4 +15,13 @@ final class TimeFormatTests: XCTestCase {
         XCTAssertEqual(TimeFormat.duration(3600), "1h")
         XCTAssertEqual(TimeFormat.duration(5400), "1h 30m")
     }
+
+    func testGlancePill() {
+        XCTAssertEqual(GlancePill.idle, "[ · ]")
+        XCTAssertEqual(GlancePill.latched(remainingSeconds: 1122, title: "Fix auth token"), "[▪] 18:42 · Fix auth token")
+        XCTAssertEqual(GlancePill.latched(remainingSeconds: -134, title: "Fix auth token"), "[▪] +02:14 · Fix auth token")
+        let truncated = GlancePill.truncate("Refactor the entire payments module")
+        XCTAssertEqual(truncated.count, 22)
+        XCTAssertTrue(truncated.hasSuffix("…"))
+    }
 }
