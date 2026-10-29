@@ -24,6 +24,8 @@ final class LatchEngine: ObservableObject {
     static let hardStopDefaultsKey = "LatchHardStop"
     /// UserDefaults key: Drift Guard grace period in seconds (default 20).
     static let driftGraceDefaultsKey = "LatchDriftGraceSeconds"
+    /// UserDefaults key: when `true`, Drift Guard ignores app switches entirely.
+    static let driftGuardDisabledDefaultsKey = "LatchDriftGuardDisabled"
 
     static let durationStepSeconds = 300
     static let minDurationSeconds = 300
@@ -142,6 +144,8 @@ final class LatchEngine: ObservableObject {
         (UserDefaults.standard.object(forKey: Self.driftGraceDefaultsKey) as? NSNumber)?.doubleValue
             ?? DriftLedger.defaultGraceSeconds
     }
+
+    private var driftGuardEnabled: Bool { !UserDefaults.standard.bool(forKey: Self.driftGuardDisabledDefaultsKey) }
 
     // MARK: - Lifecycle
 
@@ -279,7 +283,7 @@ final class LatchEngine: ObservableObject {
 
     /// Drift Guard: every app switch while latched either starts or ends an excursion.
     private func appDidActivate(_ app: NSRunningApplication) {
-        guard case var .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
+        guard driftGuardEnabled, case var .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
         let now = Date.now
         if anchor.matches(app, pinned) {
             session.drift.returnToAnchor(at: now)
