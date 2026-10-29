@@ -94,9 +94,13 @@ private struct PermissionsView: View {
 struct PopoverHeader: View {
     let label: String
     var labelColor: Color = Tokens.silver
+    var glyph: ShutterLayout?
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
+            if let glyph {
+                ShutterGlyphView(layout: glyph, scale: 0.75)
+            }
             SectionLabel(label, color: labelColor)
             Spacer()
             Button { NSApp.terminate(nil) } label: { KeycapBadge("⌘Q") }

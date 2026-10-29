@@ -19,7 +19,8 @@ struct StateDumpGateView: View {
             Rectangle().fill(Tokens.amber).frame(height: 2)
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
+                HStack(spacing: 8) {
+                    ShutterGlyphView(layout: engine.shutter, scale: 0.75)
                     SectionLabel("STATE DUMP", color: Tokens.amber)
                     Spacer()
                     Text("\(TimeFormat.clock(TimeInterval(session.sessionElapsedSeconds()))) logged")
