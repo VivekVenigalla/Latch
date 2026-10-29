@@ -7,11 +7,12 @@ struct LatchedFocusView: View {
     let session: ActiveSession
 
     private var tint: Color {
-        engine.isOvertime || session.isClamped ? Tokens.amber : Tokens.emerald
+        engine.isOvertime || engine.isDrifting || session.isClamped ? Tokens.amber : Tokens.emerald
     }
 
     private var statusLabel: String {
         if engine.isOvertime { return "OVERTIME" }
+        if engine.isDrifting { return "DRIFTING" }
         if session.isClamped { return "CLAMPED" }
         return "LATCHED"
     }
@@ -29,12 +30,19 @@ struct LatchedFocusView: View {
                         Text(TimeFormat.clock(engine.remainingSeconds))
                             .font(LatchFont.timer)
                             .foregroundStyle(engine.isOvertime ? Tokens.amber : Tokens.crispWhite)
-                        SectionLabel(statusLabel, color: tint)
-                            .help(session.clampReason ?? "")
+                        HStack(spacing: 5) {
+                            SectionLabel(statusLabel, color: tint)
+                                .help(session.clampReason ?? "")
+                            if engine.isDrifting {
+                                Text(TimeFormat.clock(-engine.driftExcursionSeconds))
+                                    .font(LatchFont.label.monospacedDigit())
+                                    .foregroundStyle(Tokens.amber)
+                            }
+                        }
                     }
                     Spacer(minLength: 4)
                     if let pinned = session.pinnedApp {
-                        RefocusPill(pinned: pinned)
+                        RefocusPill(pinned: pinned, urgent: engine.isDrifting)
                     }
                 }
 
@@ -85,10 +93,11 @@ struct LatchedFocusView: View {
     }
 }
 
-/// `[App Icon] Refocus <AppName> [⌘G]`
+/// `[App Icon] Refocus <AppName> [⌘G]` — becomes an amber `Return to <AppName>` while drifting.
 private struct RefocusPill: View {
     @EnvironmentObject private var engine: LatchEngine
     let pinned: PinnedApp
+    var urgent = false
 
     var body: some View {
         Button { engine.refocusPinnedApp() } label: {
@@ -99,9 +108,9 @@ private struct RefocusPill: View {
                         .interpolation(.high)
                         .frame(width: 13, height: 13)
                 }
-                Text("Refocus \(pinned.name)")
+                Text("\(urgent ? "Return to" : "Refocus") \(pinned.name)")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Tokens.silver)
+                    .foregroundStyle(urgent ? Tokens.amber : Tokens.silver)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 KeycapBadge("⌘G")
@@ -110,7 +119,8 @@ private struct RefocusPill: View {
             .padding(.trailing, 3)
             .padding(.vertical, 2.5)
             .background(Capsule().fill(Color.white.opacity(0.04)))
-            .overlay(Capsule().strokeBorder(Tokens.perimeter, lineWidth: 1))
+            .overlay(Capsule().strokeBorder(urgent ? Tokens.amber.opacity(0.6) : Tokens.perimeter, lineWidth: 1))
+            .animation(Tokens.snap, value: urgent)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
