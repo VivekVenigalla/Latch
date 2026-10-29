@@ -31,4 +31,39 @@ final class CandidateScorerTests: XCTestCase {
         // 30 + 40 + 25 - 50
         XCTAssertEqual(CandidateScorer.score(c, skipCount: 1, secondsUntilNextEvent: nil, now: now), 45)
     }
+
+    func testResolvePicksHighestAndCycles() {
+        let a = TaskCandidate(id: "a", title: "A", priority: 1, dueDate: now)          // 95
+        let b = TaskCandidate(id: "b", title: "B", priority: 5, dueDate: now)          // 80
+        let c = TaskCandidate(id: "c", title: "C", priority: 0)                        // 40
+        let all = [c, b, a]
+        var skips: [String: Int] = [:]
+
+        func pick() -> String? {
+            CandidateScorer.resolve(all, filter: .all, skipCounts: skips, secondsUntilNextEvent: nil, now: now)?.id
+        }
+        XCTAssertEqual(pick(), "a")
+        skips["a", default: 0] += 1                  // a: 45
+        XCTAssertEqual(pick(), "b")
+        skips["b", default: 0] += 1                  // b: 30
+        XCTAssertEqual(pick(), "a", "a (45) still outranks c (40) after one skip each")
+        skips["a", default: 0] += 1                  // a: -5
+        XCTAssertEqual(pick(), "c")
+        skips["c", default: 0] += 1                  // c: -10
+        XCTAssertEqual(pick(), "b", "b (30) is now the best remaining")
+    }
+
+    func testQuickFilter() {
+        let long = TaskCandidate(id: "long", title: "Long", priority: 1, metadata: LatchMetadata(durationSec: 3600))
+        let short = TaskCandidate(id: "short", title: "Short", priority: 9, metadata: LatchMetadata(durationSec: 600))
+        let pick = CandidateScorer.resolve([long, short], filter: .quick, skipCounts: [:], secondsUntilNextEvent: nil, now: now)
+        XCTAssertEqual(pick?.id, "short")
+        XCTAssertNil(CandidateScorer.resolve([long], filter: .quick, skipCounts: [:], secondsUntilNextEvent: nil, now: now))
+    }
+
+    func testTieBreakIsDeterministic() {
+        let x = TaskCandidate(id: "x", title: "Beta")
+        let y = TaskCandidate(id: "y", title: "alpha")
+        XCTAssertEqual(CandidateScorer.resolve([x, y], filter: .all, skipCounts: [:], secondsUntilNextEvent: nil, now: now)?.id, "y")
+    }
 }

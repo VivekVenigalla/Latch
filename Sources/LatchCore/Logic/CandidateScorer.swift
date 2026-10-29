@@ -59,4 +59,41 @@ public enum CandidateScorer {
         let s = Double(skipCount * skipPenalty)
         return weights.priority * p + weights.dueDate * d + weights.calendarFit * f - weights.skip * s
     }
+
+    /// Picks the single highest-scoring candidate admitted by `filter`.
+    /// Ties break on earliest due date, then title, then id, so the result is deterministic.
+    public static func resolve(
+        _ candidates: [TaskCandidate],
+        filter: FilterMode,
+        skipCounts: [String: Int],
+        secondsUntilNextEvent: TimeInterval?,
+        now: Date,
+        weights: ScoringWeights = .standard
+    ) -> TaskCandidate? {
+        var best: TaskCandidate?
+        for var candidate in candidates where filter.admits(candidate) {
+            candidate.score = score(
+                candidate,
+                skipCount: skipCounts[candidate.id, default: 0],
+                secondsUntilNextEvent: secondsUntilNextEvent,
+                now: now,
+                weights: weights)
+            if let current = best, !ranks(candidate, above: current) { continue }
+            best = candidate
+        }
+        return best
+    }
+
+    private static func ranks(_ a: TaskCandidate, above b: TaskCandidate) -> Bool {
+        if a.score != b.score { return a.score > b.score }
+        switch (a.dueDate, b.dueDate) {
+        case let (x?, y?) where x != y: return x < y
+        case (.some, nil): return true
+        case (nil, .some): return false
+        default: break
+        }
+        let byTitle = a.title.localizedCaseInsensitiveCompare(b.title)
+        if byTitle != .orderedSame { return byTitle == .orderedAscending }
+        return a.id < b.id
+    }
 }
