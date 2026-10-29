@@ -18,13 +18,9 @@ struct RootPopoverView: View {
             case let .latchedFocus(session):
                 LatchedFocusView(session: session)
                     .transition(.opacity)
-            case .stateDumpGate:
-                // Interim readout until the gate gets its own view.
-                Text(engine.glanceText)
-                    .font(LatchFont.timer)
-                    .foregroundStyle(Tokens.crispWhite)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            case let .stateDumpGate(session):
+                StateDumpGateView(session: session)
+                    .transition(.opacity)
             }
         }
         .frame(width: Tokens.popoverWidth)
