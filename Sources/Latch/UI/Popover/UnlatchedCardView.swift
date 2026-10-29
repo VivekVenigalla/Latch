@@ -112,25 +112,70 @@ private struct CandidateCard: View {
     }
 }
 
-/// `[−] 25m [+]` — adjustable with the keycaps, `-` / `=`, or the scroll wheel, in 5m steps.
+/// `[−] ||||▮|||| [+] 25m` — a sliding ruler under a fixed emerald index. Drag, scroll,
+/// tap the keycaps, or press `-` / `=` to move in 5m steps.
 private struct DurationStepper: View {
     @EnvironmentObject private var engine: LatchEngine
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Button { engine.adjustDuration(steps: -1) } label: { KeycapBadge("−") }
                 .buttonStyle(.plain)
                 .keyboardShortcut("-", modifiers: [])
-            Text(TimeFormat.duration(engine.selectedDurationSec))
-                .font(LatchFont.timer)
-                .foregroundStyle(Tokens.crispWhite)
-                .frame(minWidth: 34)
-                .overlay(ScrollWheelCatcher { engine.adjustDuration(steps: $0) })
-                .help("Scroll to adjust in 5m steps")
+            DurationDial()
             Button { engine.adjustDuration(steps: 1) } label: { KeycapBadge("+") }
                 .buttonStyle(.plain)
                 .keyboardShortcut("=", modifiers: [])
+            Text(TimeFormat.duration(engine.selectedDurationSec))
+                .font(LatchFont.timer)
+                .foregroundStyle(Tokens.crispWhite)
+                .frame(minWidth: 40, alignment: .leading)
+                .contentTransition(.numericText())
         }
+    }
+}
+
+private struct DurationDial: View {
+    @EnvironmentObject private var engine: LatchEngine
+
+    private let width: CGFloat = 84
+    private let pitch: CGFloat = 6
+    private static let tickCount =
+        (LatchEngine.maxDurationSeconds - LatchEngine.minDurationSeconds) / LatchEngine.durationStepSeconds + 1
+
+    private var selectedIndex: Int {
+        (engine.selectedDurationSec - LatchEngine.minDurationSeconds) / LatchEngine.durationStepSeconds
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            HStack(alignment: .center, spacing: pitch - 1) {
+                ForEach(0..<Self.tickCount, id: \.self) { i in
+                    let minutes = (i + 1) * 5
+                    Rectangle()
+                        .fill(Color.white.opacity(i <= selectedIndex ? 0.45 : 0.16))
+                        .frame(width: 1, height: minutes % 15 == 0 ? 10 : 5)
+                }
+            }
+            .fixedSize()
+            .offset(x: width / 2 - CGFloat(selectedIndex) * pitch - 0.5)
+            .animation(Tokens.snap, value: selectedIndex)
+
+            Rectangle()
+                .fill(Tokens.emerald)
+                .frame(width: 1.5, height: 14)
+                .shadow(color: Tokens.emerald.opacity(0.6), radius: 2)
+                .offset(x: width / 2 - 0.75)
+        }
+        .frame(width: width, height: 16, alignment: .leading)
+        .clipped()
+        .mask(LinearGradient(
+            stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.25),
+                    .init(color: .black, location: 0.75), .init(color: .clear, location: 1)],
+            startPoint: .leading, endPoint: .trailing))
+        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Tokens.wellFill))
+        .overlay(DialInputCatcher(pointsPerStep: pitch) { engine.adjustDuration(steps: $0) })
+        .help("Drag or scroll to adjust in 5m steps")
     }
 }
 

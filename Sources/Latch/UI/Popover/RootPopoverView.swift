@@ -149,24 +149,56 @@ struct WindowKeyObserver: NSViewRepresentable {
     }
 }
 
-/// Forwards scroll-wheel ticks as ±1 steps (used for the duration badge).
-struct ScrollWheelCatcher: NSViewRepresentable {
+/// Turns scroll-wheel ticks and horizontal drags into ±1 steps (used by the duration dial).
+/// Dragging left pulls higher values under the index, like sliding a physical ruler.
+struct DialInputCatcher: NSViewRepresentable {
+    var pointsPerStep: CGFloat
     let onStep: (Int) -> Void
 
     func makeNSView(context: Context) -> CatcherView {
         let view = CatcherView()
         view.onStep = onStep
+        view.pointsPerStep = pointsPerStep
         return view
     }
 
     func updateNSView(_ view: CatcherView, context: Context) {
         view.onStep = onStep
+        view.pointsPerStep = pointsPerStep
     }
 
     final class CatcherView: NSView {
         var onStep: ((Int) -> Void)?
+        var pointsPerStep: CGFloat = 8
         private var accumulator: CGFloat = 0
         private let threshold: CGFloat = 14
+        private var dragStartX: CGFloat?
+        private var dragAppliedSteps = 0
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func resetCursorRects() {
+            addCursorRect(bounds, cursor: .resizeLeftRight)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            dragStartX = convert(event.locationInWindow, from: nil).x
+            dragAppliedSteps = 0
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard let dragStartX else { return }
+            let dx = convert(event.locationInWindow, from: nil).x - dragStartX
+            let target = Int((-dx / pointsPerStep).rounded())
+            if target != dragAppliedSteps {
+                onStep?(target - dragAppliedSteps)
+                dragAppliedSteps = target
+            }
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            dragStartX = nil
+        }
 
         override func scrollWheel(with event: NSEvent) {
             accumulator += event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 1 : 10)
