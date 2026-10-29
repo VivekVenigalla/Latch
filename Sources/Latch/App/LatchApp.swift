@@ -8,9 +8,8 @@ struct LatchApp: App {
 
     var body: some Scene {
         MenuBarExtra(GlancePill.idle) {
-            Text("Latch")
-                .padding()
-                .frame(width: 320)
+            RootPopoverView()
+                .environmentObject(appDelegate.engine)
         }
         .menuBarExtraStyle(.window)
     }

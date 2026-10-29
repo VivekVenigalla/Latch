@@ -1,0 +1,148 @@
+import AppKit
+import LatchCore
+import SwiftUI
+
+/// Switches between the four FSM states. Exactly one task is ever on screen.
+struct RootPopoverView: View {
+    @EnvironmentObject private var engine: LatchEngine
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            switch engine.state {
+            case .permissionsRequired:
+                PermissionsView()
+                    .transition(.opacity)
+            case .unlatchedSelector, .latchedFocus, .stateDumpGate:
+                // Interim readout until each state gets its own view.
+                Text(engine.glanceText)
+                    .font(LatchFont.timer)
+                    .foregroundStyle(Tokens.crispWhite)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(width: Tokens.popoverWidth)
+        .frame(minHeight: Tokens.popoverMinHeight, maxHeight: Tokens.popoverMaxHeight, alignment: .top)
+        .clipped()
+        .background {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                Tokens.obsidian.opacity(0.65)
+            }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: Tokens.windowCornerRadius, style: .continuous)
+                .strokeBorder(Tokens.perimeter, lineWidth: 1)
+        }
+        .environment(\.colorScheme, .dark)
+        .animation(Tokens.snap, value: engine.state.phase)
+        .background(WindowKeyObserver { engine.popoverDidOpen() })
+    }
+}
+
+// MARK: - Permissions
+
+private struct PermissionsView: View {
+    @EnvironmentObject private var engine: LatchEngine
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                PopoverHeader(label: "LATCH · SETUP")
+                Text("Reminders access required")
+                    .font(LatchFont.title)
+                    .tracking(-0.2)
+                    .foregroundStyle(Tokens.crispWhite)
+                Text(engine.permissionDenied
+                     ? "Access was denied. Enable Latch under Privacy & Security → Reminders (and Calendars for meeting-aware clamping)."
+                     : "Latch reads one task at a time from Apple Reminders. Calendar access lets sessions stop before meetings.")
+                    .font(LatchFont.meta)
+                    .foregroundStyle(Tokens.silver)
+                    .lineLimit(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+
+            Spacer(minLength: 0)
+            Hairline()
+
+            HStack(spacing: 6) {
+                if engine.permissionDenied {
+                    KeycapButton(title: "Open Settings", key: "↩", prominent: true) {
+                        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!
+                        NSWorkspace.shared.open(url)
+                    }
+                    .keyboardShortcut(.return, modifiers: [])
+                } else {
+                    KeycapButton(title: "Grant Access", key: "↩", prominent: true) {
+                        Task { await engine.requestPermissions() }
+                    }
+                    .keyboardShortcut(.return, modifiers: [])
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+    }
+}
+
+// MARK: - Shared header
+
+struct PopoverHeader: View {
+    let label: String
+    var labelColor: Color = Tokens.silver
+
+    var body: some View {
+        HStack(spacing: 6) {
+            SectionLabel(label, color: labelColor)
+            Spacer()
+            Button { NSApp.terminate(nil) } label: { KeycapBadge("⌘Q") }
+                .buttonStyle(.plain)
+                .keyboardShortcut("q", modifiers: .command)
+                .help("Quit Latch")
+        }
+    }
+}
+
+// MARK: - Window observation
+
+/// Fires `onBecomeKey` each time the hosting window (the MenuBarExtra panel) becomes key,
+/// i.e. each time the user opens the popover.
+struct WindowKeyObserver: NSViewRepresentable {
+    let onBecomeKey: () -> Void
+
+    func makeNSView(context: Context) -> ObserverView {
+        let view = ObserverView()
+        view.onBecomeKey = onBecomeKey
+        return view
+    }
+
+    func updateNSView(_ view: ObserverView, context: Context) {
+        view.onBecomeKey = onBecomeKey
+    }
+
+    final class ObserverView: NSView {
+        var onBecomeKey: (() -> Void)?
+        private var token: NSObjectProtocol?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let token { NotificationCenter.default.removeObserver(token) }
+            token = nil
+            guard let window else { return }
+            token = NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main
+            ) { [weak self] _ in
+                self?.onBecomeKey?()
+            }
+            if window.isKeyWindow {
+                DispatchQueue.main.async { [weak self] in self?.onBecomeKey?() }
+            }
+        }
+
+        deinit {
+            if let token { NotificationCenter.default.removeObserver(token) }
+        }
+    }
+}
