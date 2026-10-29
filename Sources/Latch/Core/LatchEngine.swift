@@ -294,6 +294,29 @@ final class LatchEngine: ObservableObject {
         }
     }
 
+    // MARK: - State 3: stateDumpGate
+
+    /// Logs the next physical action and releases the lock. Returns `false` if `note` is blank.
+    @discardableResult
+    func commitContext(_ note: String) -> Bool {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, case let .stateDumpGate(session) = state else { return false }
+
+        persist(id: session.task.id) { metadata in
+            metadata.context = trimmed
+            metadata.elapsedSec = session.totalElapsedSeconds()
+            metadata.deferredCount = (metadata.deferredCount ?? 0) + 1
+        }
+        if let index = candidates.firstIndex(where: { $0.id == session.task.id }) {
+            candidates[index].metadata.context = trimmed
+            candidates[index].metadata.elapsedSec = session.totalElapsedSeconds()
+        }
+        // Surface something else first; the deferred task comes back on the next cycle.
+        sessionSkipCounts[session.task.id, default: 0] += 1
+        returnToSelector(removing: nil)
+        return true
+    }
+
     // MARK: - Helpers
 
     private func returnToSelector(removing completedID: String?) {
