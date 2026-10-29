@@ -2,6 +2,18 @@ import EventKit
 import Foundation
 import LatchCore
 
+enum LatchError: LocalizedError {
+    case reminderMissing
+    case noDefaultList
+
+    var errorDescription: String? {
+        switch self {
+        case .reminderMissing: "That reminder no longer exists."
+        case .noDefaultList: "No default Reminders list is configured."
+        }
+    }
+}
+
 /// Thin wrapper over `EKEventStore`. Native EventKit only — never AppleScript/JXA.
 @MainActor
 final class EventKitService {
@@ -58,5 +70,45 @@ final class EventKitService {
                 continuation.resume(returning: (reminders ?? []).map(TaskCandidate.init(reminder:)))
             }
         }
+    }
+
+    func reminder(id: String) -> EKReminder? {
+        store.calendarItem(withIdentifier: id) as? EKReminder
+    }
+
+    /// `true` when the reminder was completed or deleted outside Latch.
+    func isReminderGone(id: String) -> Bool {
+        guard let reminder = reminder(id: id) else { return true }
+        return reminder.isCompleted
+    }
+
+    /// Fetches the reminder fresh from the store, applies `mutate`, and commits.
+    func updateReminder(id: String, _ mutate: (EKReminder) -> Void) throws {
+        guard let reminder = reminder(id: id) else { throw LatchError.reminderMissing }
+        mutate(reminder)
+        try store.save(reminder, commit: true)
+    }
+
+    /// Updates only the `---LATCH---` block, leaving the user's notes untouched.
+    func updateMetadata(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) throws {
+        try updateReminder(id: id) { reminder in
+            var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
+            mutate(&metadata)
+            reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
+        }
+    }
+
+    func createReminder(from capture: CaptureParse) throws {
+        let reminder = EKReminder(eventStore: store)
+        reminder.title = capture.title
+        guard let calendar = list(named: capture.listName) ?? store.defaultCalendarForNewReminders() else {
+            throw LatchError.noDefaultList
+        }
+        reminder.calendar = calendar
+        if let priority = capture.priority { reminder.priority = priority.ekPriority }
+        if let duration = capture.durationSec {
+            reminder.notes = LatchMetadataParser.write(LatchMetadata(durationSec: duration), into: nil)
+        }
+        try store.save(reminder, commit: true)
     }
 }
