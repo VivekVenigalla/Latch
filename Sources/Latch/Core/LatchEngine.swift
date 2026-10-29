@@ -35,6 +35,10 @@ final class LatchEngine: ObservableObject {
     /// Preview of the calendar clamp for the current candidate and selected duration.
     @Published private(set) var clampPreview: ClampResult?
     @Published private(set) var microSteps: [MicroStep] = []
+    /// Drift Guard: away from the pinned app for longer than the grace period.
+    @Published private(set) var isDrifting = false
+    /// Length of the current excursion away from the pinned app (0 when on it).
+    @Published private(set) var driftExcursionSeconds: TimeInterval = 0
     @Published private(set) var permissionDenied = false
     @Published private(set) var lastError: String?
 
@@ -65,6 +69,9 @@ final class LatchEngine: ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         })
+        anchor.onExternalActivation = { [weak self] app in
+            self?.appDidActivate(app)
+        }
     }
 
     // MARK: - Derived state
@@ -259,6 +266,19 @@ final class LatchEngine: ObservableObject {
         }
     }
 
+    /// Drift Guard: every app switch while latched either starts or ends an excursion.
+    private func appDidActivate(_ app: NSRunningApplication) {
+        guard case var .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
+        let now = Date.now
+        if anchor.matches(app, pinned) {
+            session.drift.returnToAnchor(at: now)
+        } else {
+            session.drift.leave(at: now)
+        }
+        state = .latchedFocus(activeTask: session)
+        tick()
+    }
+
     func refocusPinnedApp() {
         guard case let .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
         anchor.refocus(pinned)
@@ -308,7 +328,10 @@ final class LatchEngine: ObservableObject {
     func unlatch() {
         guard case var .latchedFocus(session) = state else { return }
         stopTicker()
-        session.pausedAt = .now
+        let now = Date.now
+        session.pausedAt = now
+        session.drift.returnToAnchor(at: now)
+        clearDriftReadout()
         state = .stateDumpGate(completedSession: session)
     }
 
@@ -336,6 +359,8 @@ final class LatchEngine: ObservableObject {
     private func tick() {
         guard case let .latchedFocus(session) = state else { return }
         remainingSeconds = session.targetEndDate.timeIntervalSinceNow
+        isDrifting = session.drift.isDrifting(at: .now)
+        driftExcursionSeconds = session.drift.currentExcursion(at: .now)
         if remainingSeconds <= 0, !hasChimed {
             hasChimed = true
             NSSound(named: "Tink")?.play()
@@ -372,9 +397,15 @@ final class LatchEngine: ObservableObject {
         if let completedID { candidates.removeAll { $0.id == completedID } }
         microSteps.removeAll()
         remainingSeconds = 0
+        clearDriftReadout()
         state = .unlatchedSelector(candidate: nil, filterMode: .all)
         resolve(filter: .all)
         scheduleRefresh(delayNanoseconds: 0)
+    }
+
+    private func clearDriftReadout() {
+        isDrifting = false
+        driftExcursionSeconds = 0
     }
 
     private func persist(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) {

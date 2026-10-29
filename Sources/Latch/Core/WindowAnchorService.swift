@@ -11,7 +11,7 @@ final class WindowAnchorService {
     private var observer: NSObjectProtocol?
 
     /// Called on every activation of an app other than Latch (Drift Guard listens here).
-    var onExternalActivation: ((NSRunningApplication) -> Void)?
+    var onExternalActivation: (@MainActor (NSRunningApplication) -> Void)?
 
     init() {
         if let front = NSWorkspace.shared.frontmostApplication, !isSelf(front) {
