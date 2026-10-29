@@ -111,4 +111,15 @@ final class EventKitService {
         }
         try store.save(reminder, commit: true)
     }
+
+    // MARK: Calendar
+
+    /// Events overlapping `[start, end]`, as value snapshots. Empty without Calendar access.
+    func calendarBlocks(from start: Date, to end: Date) -> [CalendarBlock] {
+        guard eventsAuthorized, end > start else { return [] }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        return store.events(matching: predicate).map {
+            CalendarBlock(start: $0.startDate, title: $0.title, isAllDay: $0.isAllDay, isFree: $0.availability == .free)
+        }
+    }
 }
