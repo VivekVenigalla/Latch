@@ -23,13 +23,15 @@ struct LatchedFocusView: View {
                 tint: tint)
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 7) {
-                    Circle().fill(tint).frame(width: 6, height: 6)
-                    Text(TimeFormat.clock(engine.remainingSeconds))
-                        .font(LatchFont.timer)
-                        .foregroundStyle(engine.isOvertime ? Tokens.amber : Tokens.crispWhite)
-                    SectionLabel(statusLabel, color: tint)
-                        .help(session.clampReason ?? "")
+                HStack(alignment: .center, spacing: 10) {
+                    ShutterGlyphView(layout: engine.shutter, scale: 1.6)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(TimeFormat.clock(engine.remainingSeconds))
+                            .font(LatchFont.timer)
+                            .foregroundStyle(engine.isOvertime ? Tokens.amber : Tokens.crispWhite)
+                        SectionLabel(statusLabel, color: tint)
+                            .help(session.clampReason ?? "")
+                    }
                     Spacer(minLength: 4)
                     if let pinned = session.pinnedApp {
                         RefocusPill(pinned: pinned)
