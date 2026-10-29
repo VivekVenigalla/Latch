@@ -13,6 +13,10 @@ import LatchCore
 /// The user can never leave an incomplete task without passing through `stateDumpGate`.
 @MainActor
 final class LatchEngine: ObservableObject {
+    /// UserDefaults key: when `true`, hitting 00:00 goes straight to the state-dump gate
+    /// instead of counting up in amber overtime ("Soft Box", the default).
+    static let hardStopDefaultsKey = "LatchHardStop"
+
     static let durationStepSeconds = 300
     static let minDurationSeconds = 300
     static let maxDurationSeconds = 3 * 3600
@@ -33,6 +37,9 @@ final class LatchEngine: ObservableObject {
     /// In-memory deferral counts for `Cycle [⇥]`; cleared each time a task is latched.
     private var sessionSkipCounts: [String: Int] = [:]
     private var upcomingBlocks: [CalendarBlock] = []
+    private var ticker: Timer?
+    private var timerActivity: NSObjectProtocol?
+    private var hasChimed = false
     private var refreshTask: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
 
@@ -44,6 +51,11 @@ final class LatchEngine: ObservableObject {
             forName: .EKEventStoreChanged, object: eventKit.store, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.storeDidChange() }
+        })
+        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
         })
     }
 
@@ -75,6 +87,8 @@ final class LatchEngine: ObservableObject {
         }
     }
 
+    private var hardStopOnExpiry: Bool { UserDefaults.standard.bool(forKey: Self.hardStopDefaultsKey) }
+
     // MARK: - Lifecycle
 
     func bootstrap() async {
@@ -98,6 +112,9 @@ final class LatchEngine: ObservableObject {
     /// Called whenever the menu bar popover becomes key.
     func popoverDidOpen() {
         switch state {
+        case .latchedFocus where isOvertime:
+            // Soft Box overtime ends the moment the user looks at Latch.
+            unlatch()
         case .unlatchedSelector, .permissionsRequired:
             scheduleRefresh(delayNanoseconds: 0)
         case .latchedFocus, .stateDumpGate:
@@ -171,7 +188,101 @@ final class LatchEngine: ObservableObject {
         clampPreview = result.isClamped ? result : nil
     }
 
+    // MARK: - State 2: latchedFocus
+
+    func latch() {
+        guard let candidate = currentCandidate else { return }
+        latch(onto: candidate)
+    }
+
+    func latch(onto candidate: TaskCandidate) {
+        let now = Date.now
+        let requested = selectedDurationSec
+        let blocks = eventKit.calendarBlocks(
+            from: now, to: now.addingTimeInterval(TimeInterval(requested) + CalendarClamp.bufferSeconds))
+        let clamp = CalendarClamp.clamp(requestedSeconds: requested, now: now, events: blocks)
+
+        let session = ActiveSession(
+            task: candidate,
+            requestedSeconds: requested,
+            allocatedSeconds: clamp.allocatedSeconds,
+            clampReason: clamp.reason,
+            pinnedApp: anchor.captureFrontmost(),
+            now: now)
+
+        sessionSkipCounts.removeAll()
+        hasChimed = false
+        state = .latchedFocus(activeTask: session)
+        startTicker()
+
+        persist(id: candidate.id) { metadata in
+            metadata.durationSec = requested
+            metadata.lastLatched = now
+        }
+    }
+
+    func refocusPinnedApp() {
+        guard case let .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
+        anchor.refocus(pinned)
+    }
+
+    /// `Unlatch [⌘.]` — pauses the clock and forces the state-dump gate.
+    func unlatch() {
+        guard case var .latchedFocus(session) = state else { return }
+        stopTicker()
+        session.pausedAt = .now
+        state = .stateDumpGate(completedSession: session)
+    }
+
+    private func startTicker() {
+        stopTicker()
+        // Keep the 0.5s cadence honest while the app is backgrounded; the math is wall-clock anyway.
+        timerActivity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep], reason: "Latch focus timer")
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tick() }
+        }
+        timer.tolerance = 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        ticker = timer
+        tick()
+    }
+
+    private func stopTicker() {
+        ticker?.invalidate()
+        ticker = nil
+        if let timerActivity { ProcessInfo.processInfo.endActivity(timerActivity) }
+        timerActivity = nil
+    }
+
+    private func tick() {
+        guard case let .latchedFocus(session) = state else { return }
+        remainingSeconds = session.targetEndDate.timeIntervalSinceNow
+        if remainingSeconds <= 0, !hasChimed {
+            hasChimed = true
+            NSSound(named: "Tink")?.play()
+            if hardStopOnExpiry { unlatch() }
+        }
+    }
+
     // MARK: - Helpers
+
+    private func returnToSelector(removing completedID: String?) {
+        if let completedID { candidates.removeAll { $0.id == completedID } }
+        remainingSeconds = 0
+        state = .unlatchedSelector(candidate: nil, filterMode: .all)
+        resolve(filter: .all)
+        scheduleRefresh(delayNanoseconds: 0)
+    }
+
+    private func persist(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) {
+        do {
+            try eventKit.updateMetadata(id: id, mutate)
+            lastError = nil
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
 
     private func storeDidChange() {
         switch state {
