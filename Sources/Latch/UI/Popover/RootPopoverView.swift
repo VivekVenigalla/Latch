@@ -15,8 +15,11 @@ struct RootPopoverView: View {
             case let .unlatchedSelector(candidate, filterMode):
                 UnlatchedCardView(candidate: candidate, filterMode: filterMode)
                     .transition(.opacity)
-            case .latchedFocus, .stateDumpGate:
-                // Interim readout until each state gets its own view.
+            case let .latchedFocus(session):
+                LatchedFocusView(session: session)
+                    .transition(.opacity)
+            case .stateDumpGate:
+                // Interim readout until the gate gets its own view.
                 Text(engine.glanceText)
                     .font(LatchFont.timer)
                     .foregroundStyle(Tokens.crispWhite)
