@@ -47,6 +47,14 @@ enum Tokens {
     /// The only transition curve in the popover: snappy, non-oscillating.
     static let snap = Animation.spring(response: 0.20, dampingFraction: 0.90)
 
+    static func shutterTint(_ phase: ShutterPhase) -> Color {
+        switch phase {
+        case .running: emerald
+        case .clamped, .overtime, .paused: amber
+        case .idle: silver
+        }
+    }
+
     static func color(for band: PriorityBand) -> Color {
         switch band {
         case .high: coral
