@@ -50,7 +50,7 @@ enum Tokens {
     static func shutterTint(_ phase: ShutterPhase) -> Color {
         switch phase {
         case .running: emerald
-        case .clamped, .overtime, .paused: amber
+        case .clamped, .overtime, .paused, .drifting: amber
         case .idle: silver
         }
     }

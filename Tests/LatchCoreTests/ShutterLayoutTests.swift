@@ -15,6 +15,13 @@ final class ShutterLayoutTests: XCTestCase {
         XCTAssertEqual(gaps, gaps.sorted(by: >))
     }
 
+    func testDriftingKeepsTheRunningGeometry() {
+        let running = ShutterLayout(phase: .running, remainingFraction: 0.4)
+        let drifting = ShutterLayout(phase: .drifting, remainingFraction: 0.4)
+        XCTAssertEqual(drifting.gap, running.gap)
+        XCTAssertEqual(drifting.notchCount, 0)
+    }
+
     func testOvertimeNotchesGrowAndCap() {
         XCTAssertEqual(ShutterLayout(phase: .overtime, overtimeSeconds: 5).notchCount, 1)
         XCTAssertEqual(ShutterLayout(phase: .overtime, overtimeSeconds: 125).notchCount, 2)

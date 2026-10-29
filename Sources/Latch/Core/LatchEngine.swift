@@ -98,8 +98,10 @@ final class LatchEngine: ObservableObject {
             if remainingSeconds < 0 {
                 return ShutterLayout(phase: .overtime, overtimeSeconds: -remainingSeconds)
             }
+            // Drifting blinks the bolt hollow on alternate seconds: a peripheral nudge, not an alarm.
+            let blinkOff = isDrifting && Int(Date.now.timeIntervalSince1970) % 2 == 0
             return ShutterLayout(
-                phase: session.isClamped ? .clamped : .running,
+                phase: blinkOff ? .drifting : (session.isClamped ? .clamped : .running),
                 remainingFraction: session.progressRemaining(remainingSeconds: remainingSeconds))
         case let .stateDumpGate(session):
             let remainingAtPause = session.targetEndDate.timeIntervalSince(session.pausedAt ?? .now)
@@ -124,6 +126,7 @@ final class LatchEngine: ObservableObject {
         switch state {
         case let .latchedFocus(session):
             GlancePill.latched(remainingSeconds: remainingSeconds, title: session.task.title)
+                + (isDrifting ? " · drifting" : "")
         case let .stateDumpGate(session):
             GlancePill.paused(title: session.task.title)
         case .permissionsRequired, .unlatchedSelector:

@@ -61,7 +61,7 @@ enum ShutterRenderer {
             case .idle:
                 NSColor.secondaryLabelColor.setFill()
                 NSBezierPath(ovalIn: layout.idleDotRect).fill()
-            case .paused:
+            case .paused, .drifting:
                 let bolt = NSBezierPath(roundedRect: layout.boltRect.insetBy(dx: 0.5, dy: 0.5), xRadius: 1, yRadius: 1)
                 bolt.lineWidth = 1
                 accent.setStroke()

@@ -22,7 +22,7 @@ struct ShutterGlyphView: View {
             switch layout.phase {
             case .idle:
                 context.fill(Path(ellipseIn: layout.idleDotRect), with: .color(Tokens.silver))
-            case .paused:
+            case .paused, .drifting:
                 context.stroke(
                     Path(roundedRect: layout.boltRect.insetBy(dx: 0.5, dy: 0.5), cornerRadius: 1),
                     with: .color(tint), lineWidth: 1)

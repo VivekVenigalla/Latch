@@ -3,6 +3,8 @@ import Foundation
 
 public enum ShutterPhase: Equatable, Sendable {
     case idle, running, clamped, overtime, paused
+    /// Drift Guard's off-beat: the bolt goes hollow amber, alternating with the normal phase.
+    case drifting
 }
 
 /// Geometry for the "Shutter" glyph: two square brackets that close inward as focus time
@@ -38,7 +40,7 @@ public struct ShutterLayout: Equatable, Sendable {
         case .overtime:
             gap = Self.minGap
             notchCount = min(Self.maxNotches, 1 + Int(max(0, overtimeSeconds) / Self.secondsPerNotch))
-        case .running, .clamped, .paused:
+        case .running, .clamped, .paused, .drifting:
             let fraction = CGFloat(min(1, max(0, remainingFraction)))
             gap = Self.minGap + fraction * (Self.maxGap - Self.minGap)
             notchCount = 0
