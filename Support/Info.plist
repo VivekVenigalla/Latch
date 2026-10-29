@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleExecutable</key>
+	<string>Latch</string>
+	<key>CFBundleIdentifier</key>
+	<string>app.latch.Latch</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>Latch</string>
+	<key>CFBundleDisplayName</key>
+	<string>Latch</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Latch reads your incomplete reminders to surface exactly one task at a time, and writes completion state and resume notes back to them.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>Latch reads your incomplete reminders to surface exactly one task at a time, and writes completion state and resume notes back to them.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Latch checks your upcoming calendar events so a focus session never runs into a meeting.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Latch checks your upcoming calendar events so a focus session never runs into a meeting.</string>
+</dict>
+</plist>
