@@ -110,4 +110,45 @@ final class LatchMetadataParserTests: XCTestCase {
         let notes = "---LATCH---\nduration_sec: 100\n\n---LATCH---\nduration_sec: 200"
         XCTAssertEqual(LatchMetadataParser.parse(notes).metadata?.durationSec, 200)
     }
+
+    // MARK: Writing
+
+    func testWriteIntoEmptyNotes() {
+        let written = LatchMetadataParser.write(LatchMetadata(durationSec: 900), into: nil)
+        XCTAssertEqual(written, "---LATCH---\nduration_sec: 900\n")
+    }
+
+    func testWriteAppendsBelowUserText() {
+        let written = LatchMetadataParser.write(LatchMetadata(durationSec: 900), into: "Buy milk\n\n")
+        XCTAssertEqual(written, "Buy milk\n\n---LATCH---\nduration_sec: 900\n")
+    }
+
+    func testWriteUpdatesInPlaceWithoutDuplicatingBlock() {
+        let original = "User text.\n\n---LATCH---\nduration_sec: 1500\nelapsed_sec: 60\n"
+        var metadata = LatchMetadataParser.parse(original).metadata!
+        metadata.elapsedSec = 480
+        metadata.context = "Next: run tests"
+        let written = LatchMetadataParser.write(metadata, into: original)!
+        XCTAssertEqual(written.components(separatedBy: LatchMetadataParser.marker).count, 2)
+        XCTAssertEqual(written, "User text.\n\n---LATCH---\nduration_sec: 1500\nelapsed_sec: 480\ncontext: Next: run tests\n")
+    }
+
+    func testWriteEmptyMetadataStripsBlock() {
+        XCTAssertEqual(LatchMetadataParser.write(LatchMetadata(), into: "Keep me\n\n---LATCH---\nduration_sec: 1"), "Keep me")
+        XCTAssertNil(LatchMetadataParser.write(LatchMetadata(), into: "---LATCH---\nduration_sec: 1"))
+    }
+
+    func testMultilineContextIsFolded() {
+        let block = LatchMetadataParser.serialize(LatchMetadata(context: "line one\n  line two\n"))
+        XCTAssertEqual(block, "---LATCH---\ncontext: line one line two")
+    }
+
+    func testRoundTrip() {
+        let metadata = LatchMetadata(
+            durationSec: 1500, elapsedSec: 420, context: "Fix segfault", deferredCount: 3, lastLatched: sampleDate)
+        let written = LatchMetadataParser.write(metadata, into: "Some notes")
+        let parsed = LatchMetadataParser.parse(written)
+        XCTAssertEqual(parsed.userNotes, "Some notes")
+        XCTAssertEqual(parsed.metadata, metadata)
+    }
 }

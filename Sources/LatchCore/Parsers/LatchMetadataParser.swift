@@ -97,6 +97,27 @@ public enum LatchMetadataParser {
         return ParsedNotes(userNotes: userNotes, metadata: metadata)
     }
 
+    /// Returns `notes` with its metadata block replaced by `metadata` (or appended if absent).
+    /// User text is never modified apart from trailing whitespace. Returns `nil` when both the
+    /// user text and the metadata are empty, so the reminder's notes can be cleared.
+    public static func write(_ metadata: LatchMetadata, into notes: String?) -> String? {
+        let userNotes = trimTrailing(parse(notes).userNotes)
+        guard !metadata.isEmpty else { return userNotes.isEmpty ? nil : userNotes }
+        let block = serialize(metadata)
+        return userNotes.isEmpty ? block + "\n" : userNotes + "\n\n" + block + "\n"
+    }
+
+    /// The `---LATCH---` block alone, without user notes.
+    public static func serialize(_ metadata: LatchMetadata) -> String {
+        var lines = [marker]
+        if let v = metadata.durationSec { lines.append("\(Key.durationSec.rawValue): \(v)") }
+        if let v = metadata.elapsedSec { lines.append("\(Key.elapsedSec.rawValue): \(v)") }
+        if let v = metadata.context { lines.append("\(Key.context.rawValue): \(singleLine(v))") }
+        if let v = metadata.deferredCount { lines.append("\(Key.deferredCount.rawValue): \(v)") }
+        if let v = metadata.lastLatched { lines.append("\(Key.lastLatched.rawValue): \(v.formatted(.iso8601))") }
+        return lines.joined(separator: "\n")
+    }
+
     // MARK: - Helpers
 
     private static func splitKeyValue(_ line: String) -> (String, String)? {
@@ -121,6 +142,14 @@ public enum LatchMetadataParser {
     private static func nonNegativeInt(_ value: String) -> Int? {
         guard let n = Int(value), n >= 0 else { return nil }
         return n
+    }
+
+    /// The block is line-oriented, so a multi-line context note is folded onto one line.
+    private static func singleLine(_ s: String) -> String {
+        s.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     private static func trimTrailing(_ s: String) -> String {
