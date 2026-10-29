@@ -31,8 +31,26 @@ final class BlindCaptureNLPParserTests: XCTestCase {
         XCTAssertEqual(CapturePriority.low.ekPriority, 9)
     }
 
+    func testAllTokensStripped() {
+        let parsed = BlindCaptureNLPParser.parse("Fix auth token ~15m !high #work", knownLists: ["Work", "Home"])
+        XCTAssertEqual(parsed, CaptureParse(title: "Fix auth token", durationSec: 900, priority: .high, listName: "Work"))
+    }
+
+    func testUnknownListStaysInTitle() {
+        let parsed = BlindCaptureNLPParser.parse("Ship #123 fix", knownLists: ["Work"])
+        XCTAssertNil(parsed.listName)
+        XCTAssertEqual(parsed.title, "Ship #123 fix")
+    }
+
+    func testAnyListAcceptedWithoutKnownLists() {
+        let parsed = BlindCaptureNLPParser.parse("Call mom #home")
+        XCTAssertEqual(parsed.listName, "home")
+        XCTAssertEqual(parsed.title, "Call mom")
+    }
+
     func testTokensMustStandAlone() {
-        XCTAssertEqual(BlindCaptureNLPParser.parse("email~5m wow!high"), CaptureParse(title: "email~5m wow!high"))
+        let parsed = BlindCaptureNLPParser.parse("email~5m wow!high issue#12", knownLists: ["12"])
+        XCTAssertEqual(parsed, CaptureParse(title: "email~5m wow!high issue#12"))
     }
 
     func testFirstTokenWinsDuplicatesStripped() {
