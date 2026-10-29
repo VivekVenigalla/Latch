@@ -10,6 +10,9 @@ final class WindowAnchorService {
     private var lastExternalApp: NSRunningApplication?
     private var observer: NSObjectProtocol?
 
+    /// Called on every activation of an app other than Latch (Drift Guard listens here).
+    var onExternalActivation: ((NSRunningApplication) -> Void)?
+
     init() {
         if let front = NSWorkspace.shared.frontmostApplication, !isSelf(front) {
             lastExternalApp = front
@@ -21,6 +24,7 @@ final class WindowAnchorService {
             MainActor.assumeIsolated {
                 guard let self, let app, !self.isSelf(app) else { return }
                 self.lastExternalApp = app
+                self.onExternalActivation?(app)
             }
         }
     }
@@ -53,6 +57,13 @@ final class WindowAnchorService {
                   let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
         }
+    }
+
+    /// `true` when `app` is the pinned app, matched by process, or by bundle id after a relaunch.
+    func matches(_ app: NSRunningApplication, _ pinned: PinnedApp) -> Bool {
+        if app.processIdentifier == pinned.processIdentifier { return true }
+        guard let id = pinned.bundleIdentifier else { return false }
+        return app.bundleIdentifier == id
     }
 
     private func runningApp(for pinned: PinnedApp) -> NSRunningApplication? {
