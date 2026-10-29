@@ -40,3 +40,23 @@ final class ActiveSessionTests: XCTestCase {
         XCTAssertEqual(session.progressRemaining(remainingSeconds: -30), 0)
     }
 }
+
+final class AppStateTests: XCTestCase {
+    func testQuickFilterAdmitsOnlyShortTasks() {
+        let short = TaskCandidate(id: "s", title: "S", metadata: LatchMetadata(durationSec: 900))
+        let long = TaskCandidate(id: "l", title: "L", metadata: LatchMetadata(durationSec: 901))
+        XCTAssertTrue(FilterMode.quick.admits(short))
+        XCTAssertFalse(FilterMode.quick.admits(long))
+        XCTAssertTrue(FilterMode.all.admits(long))
+        XCTAssertEqual(FilterMode.all.toggled, .quick)
+        XCTAssertEqual(FilterMode.quick.toggled, .all)
+    }
+
+    func testPhases() {
+        let session = ActiveSession(task: TaskCandidate(id: "t", title: "T"), requestedSeconds: 60, allocatedSeconds: 60)
+        XCTAssertEqual(AppState.permissionsRequired.phase, .permissions)
+        XCTAssertEqual(AppState.unlatchedSelector(candidate: nil, filterMode: .all).phase, .selector)
+        XCTAssertEqual(AppState.latchedFocus(activeTask: session).phase, .focus)
+        XCTAssertEqual(AppState.stateDumpGate(completedSession: session).phase, .gate)
+    }
+}
