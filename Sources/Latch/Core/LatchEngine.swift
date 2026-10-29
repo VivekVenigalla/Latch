@@ -84,6 +84,35 @@ final class LatchEngine: ObservableObject {
         return false
     }
 
+    /// Current Shutter glyph geometry, shared by the menu bar and the popover.
+    var shutter: ShutterLayout {
+        switch state {
+        case let .latchedFocus(session):
+            if remainingSeconds < 0 {
+                return ShutterLayout(phase: .overtime, overtimeSeconds: -remainingSeconds)
+            }
+            return ShutterLayout(
+                phase: session.isClamped ? .clamped : .running,
+                remainingFraction: session.progressRemaining(remainingSeconds: remainingSeconds))
+        case let .stateDumpGate(session):
+            let remainingAtPause = session.targetEndDate.timeIntervalSince(session.pausedAt ?? .now)
+            return ShutterLayout(phase: .paused, remainingFraction: session.progressRemaining(remainingSeconds: remainingAtPause))
+        case .permissionsRequired, .unlatchedSelector:
+            return ShutterLayout(phase: .idle)
+        }
+    }
+
+    /// Truncated task title shown beside the menu bar glyph, if any.
+    var shutterTitle: String? {
+        switch state {
+        case let .latchedFocus(session), let .stateDumpGate(session):
+            GlancePill.truncate(session.task.title)
+        case .permissionsRequired, .unlatchedSelector:
+            nil
+        }
+    }
+
+    /// Text equivalent of the glyph, including the exact time (used for accessibility).
     var glanceText: String {
         switch state {
         case let .latchedFocus(session):
