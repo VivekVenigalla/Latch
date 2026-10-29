@@ -359,7 +359,13 @@ final class LatchEngine: ObservableObject {
 
     private func storeDidChange() {
         switch state {
-        case .latchedFocus, .stateDumpGate:
+        case let .latchedFocus(session):
+            // Completed on another device (e.g. iPhone): release the lock without a state dump.
+            if eventKit.isReminderGone(id: session.task.id) {
+                stopTicker()
+                returnToSelector(removing: session.task.id)
+            }
+        case .stateDumpGate:
             break
         case .unlatchedSelector, .permissionsRequired:
             scheduleRefresh()
