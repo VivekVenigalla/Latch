@@ -19,11 +19,30 @@ final class BlindCaptureNLPParserTests: XCTestCase {
         XCTAssertNil(BlindCaptureNLPParser.parse("Thing ~13h").durationSec)
     }
 
-    func testDurationTokenMustStandAlone() {
-        XCTAssertEqual(BlindCaptureNLPParser.parse("email~5m"), CaptureParse(title: "email~5m"))
+    func testPriorityMapping() {
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !high").priority, .high)
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !1").priority, .high)
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !med").priority, .med)
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !2").priority, .med)
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !low").priority, .low)
+        XCTAssertEqual(BlindCaptureNLPParser.parse("a !3").priority, .low)
+        XCTAssertEqual(CapturePriority.high.ekPriority, 1)
+        XCTAssertEqual(CapturePriority.med.ekPriority, 5)
+        XCTAssertEqual(CapturePriority.low.ekPriority, 9)
+    }
+
+    func testTokensMustStandAlone() {
+        XCTAssertEqual(BlindCaptureNLPParser.parse("email~5m wow!high"), CaptureParse(title: "email~5m wow!high"))
+    }
+
+    func testFirstTokenWinsDuplicatesStripped() {
+        let parsed = BlindCaptureNLPParser.parse("Task ~10m ~20m !low !high")
+        XCTAssertEqual(parsed.durationSec, 600)
+        XCTAssertEqual(parsed.priority, .low)
+        XCTAssertEqual(parsed.title, "Task")
     }
 
     func testOnlyTokensYieldsEmptyTitle() {
-        XCTAssertEqual(BlindCaptureNLPParser.parse("~15m").title, "")
+        XCTAssertEqual(BlindCaptureNLPParser.parse("~15m !high").title, "")
     }
 }
