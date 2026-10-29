@@ -35,6 +35,13 @@ struct StateDumpGateView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
+                if session.driftSeconds() > 0 {
+                    Text(driftSummary)
+                        .font(LatchFont.meta.monospacedDigit())
+                        .foregroundStyle(Tokens.amber)
+                        .lineLimit(1)
+                }
+
                 Text("Task incomplete. Log exact next physical action to unlatch:")
                     .font(LatchFont.meta)
                     .foregroundStyle(Tokens.silver)
@@ -75,6 +82,13 @@ struct StateDumpGateView: View {
             // The window may not be key yet on the same runloop pass.
             DispatchQueue.main.async { fieldFocused = true }
         }
+    }
+
+    /// `Drifted 03:12 across 2 excursions`
+    private var driftSummary: String {
+        let episodes = session.drift.episodes
+        let clock = TimeFormat.clock(TimeInterval(session.driftSeconds()))
+        return "Drifted \(clock) across \(episodes) excursion\(episodes == 1 ? "" : "s")"
     }
 
     private func commit() {
