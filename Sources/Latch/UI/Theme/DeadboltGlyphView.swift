@@ -6,11 +6,15 @@ import SwiftUI
 struct DeadboltGlyphView: View {
     let layout: DeadboltLayout
     var scale: CGFloat = 1
+    /// Plays the engage animation when this changes, or on appear if it happened within 1s.
+    var engagedAt: Date?
+    @State private var throwOverride: CGFloat?
 
     private var size: CGSize { DeadboltLayout.size }
 
     var body: some View {
         let tint = Tokens.latchTint(layout.phase)
+        let layout = throwOverride.map { self.layout.throwing(to: $0) } ?? self.layout
         ZStack(alignment: .topLeading) {
             DeadboltHousing()
                 .stroke(Tokens.crispWhite, lineWidth: DeadboltLayout.strokeWidth)
@@ -23,10 +27,24 @@ struct DeadboltGlyphView: View {
             }
         }
         .frame(width: size.width, height: size.height)
-        .animation(.linear(duration: 0.5), value: layout.boltTipX)
+        .transaction { transaction in
+            // Glide between ticks, unless an explicit animation (the engage spring) is running.
+            if transaction.animation == nil { transaction.animation = .linear(duration: 0.5) }
+        }
         .scaleEffect(scale, anchor: .topLeading)
         .frame(width: size.width * scale, height: size.height * scale, alignment: .topLeading)
         .accessibilityHidden(true)
+        .task(id: engagedAt) { await engage() }
+    }
+
+    /// The bolt throws home into the keeper, then springs back to where the session stands.
+    private func engage() async {
+        guard let engagedAt, Date.now.timeIntervalSince(engagedAt) < 1 else { return }
+        withAnimation(.spring(response: 0.16, dampingFraction: 0.75)) { throwOverride = 1 }
+        try? await Task.sleep(for: .milliseconds(200))
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { throwOverride = layout.throwFraction }
+        try? await Task.sleep(for: .milliseconds(450))
+        throwOverride = nil
     }
 }
 

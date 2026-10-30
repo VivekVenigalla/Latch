@@ -43,6 +43,8 @@ final class LatchEngine: ObservableObject {
     @Published private(set) var isDrifting = false
     /// Length of the current excursion away from the pinned app (0 when on it).
     @Published private(set) var driftExcursionSeconds: TimeInterval = 0
+    /// When the last latch happened; drives the engage animation in the menu bar and popover.
+    @Published private(set) var engagedAt: Date?
     @Published private(set) var permissionDenied = false
     @Published private(set) var lastError: String?
 
@@ -299,6 +301,8 @@ final class LatchEngine: ObservableObject {
             now: now)
 
         sessionSkipCounts.removeAll()
+        engagedAt = now
+        NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
         microSteps.removeAll()
         hasChimed = false
         state = .latchedFocus(activeTask: session)

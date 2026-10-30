@@ -28,6 +28,9 @@ final class StatusItemController: NSObject {
     /// Title dropped because the full-width item was hidden.
     private var isCompact = false
     private var retryTimer: Timer?
+    /// Bolt position forced by the engage animation, or `nil` when the engine drives it.
+    private var engageOverride: CGFloat?
+    private var engageTimer: Timer?
     private static let compactRetryInterval: TimeInterval = 300
 
     init(engine: LatchEngine, onCapture: @escaping () -> Void) {
@@ -55,6 +58,11 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
+        engine.$engagedAt
+            .compactMap { $0 }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.playEngage() }
+            .store(in: &cancellables)
         NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
             .filter { [weak self] note in (note.object as? NSWindow) === self?.statusItem.button?.window }
             .sink { [weak self] _ in self?.checkVisibility() }
@@ -70,7 +78,8 @@ final class StatusItemController: NSObject {
     private func refresh() {
         guard let button = statusItem.button else { return }
 
-        let layout = engine.deadbolt
+        let base = engine.deadbolt
+        let layout = engageOverride.map { base.throwing(to: $0) } ?? base
         if layout != renderedLayout {
             button.image = DeadboltRenderer.image(for: layout)
             renderedLayout = layout
@@ -104,6 +113,26 @@ final class StatusItemController: NSObject {
             ]))
         }
         return result
+    }
+
+    /// Frame-by-frame engage animation for the template image (status items can't use SwiftUI).
+    private func playEngage() {
+        engageTimer?.invalidate()
+        let start = Date.now
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard let self else { return timer.invalidate() }
+                self.engageOverride = DeadboltLayout.engageThrow(
+                    at: Date.now.timeIntervalSince(start), resting: self.engine.deadbolt.throwFraction)
+                if self.engageOverride == nil {
+                    timer.invalidate()
+                    self.engageTimer = nil
+                }
+                self.refresh()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        engageTimer = timer
     }
 
     // MARK: - Staying visible

@@ -54,6 +54,21 @@ public struct DeadboltLayout: Equatable, Sendable {
         DeadboltLayout(phase: phase == .idle ? .running : phase, elapsedFraction: Double(fraction))
     }
 
+    /// Engage animation: the bolt throws from `resting` to the keeper in 0.15s, then eases back
+    /// to `resting` by 0.55s — the "click" of a latch being set. `nil` once the motion is over.
+    public static let engageDuration: TimeInterval = 0.55
+
+    public static func engageThrow(at t: TimeInterval, resting: CGFloat) -> CGFloat? {
+        let resting = min(1, max(0, resting))
+        func easeOut(_ p: Double) -> CGFloat { CGFloat(1 - pow(1 - min(1, max(0, p)), 3)) }
+        switch t {
+        case ..<0: return resting
+        case ..<0.15: return resting + (1 - resting) * easeOut(t / 0.15)
+        case ..<engageDuration: return 1 - (1 - resting) * easeOut((t - 0.15) / (engageDuration - 0.15))
+        default: return nil
+        }
+    }
+
     /// Paused and drifting draw the bolt as an outline rather than solid.
     public var isBoltHollow: Bool { phase == .paused || phase == .drifting }
 

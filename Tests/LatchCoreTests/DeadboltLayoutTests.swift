@@ -42,6 +42,19 @@ final class DeadboltLayoutTests: XCTestCase {
         XCTAssertEqual(DeadboltLayout(phase: .idle).throwing(to: 0.5).phase, .running)
     }
 
+    func testEngageThrowsHomeAndReturns() {
+        XCTAssertEqual(DeadboltLayout.engageThrow(at: 0, resting: 0), 0)
+        XCTAssertEqual(DeadboltLayout.engageThrow(at: 0.15, resting: 0)!, 1, accuracy: 0.0001)
+        let back = (0...7).map { DeadboltLayout.engageThrow(at: 0.15 + Double($0) * 0.05, resting: 0.2)! }
+        XCTAssertEqual(back, back.sorted(by: >), "eases back monotonically")
+        XCTAssertEqual(DeadboltLayout.engageThrow(at: 0.5499, resting: 0.2)!, 0.2, accuracy: 0.01)
+        XCTAssertNil(DeadboltLayout.engageThrow(at: DeadboltLayout.engageDuration, resting: 0.2))
+        for t in stride(from: 0.0, to: 0.55, by: 0.01) {
+            let v = DeadboltLayout.engageThrow(at: t, resting: 0.4)!
+            XCTAssertTrue((0.4...1.0).contains(v))
+        }
+    }
+
     func testEverythingStaysInsideTheFixedBox() {
         let box = CGRect(origin: .zero, size: DeadboltLayout.size)
         let half = DeadboltLayout.strokeWidth / 2
