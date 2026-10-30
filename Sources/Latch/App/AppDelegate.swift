@@ -12,10 +12,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // LSUIElement covers the bundled app; this also keeps `swift run` out of the Dock.
         NSApp.setActivationPolicy(.accessory)
 
-        statusItem = StatusItemController(engine: engine)
-
         let capture = BlindCaptureController(eventKit: engine.eventKit)
         self.capture = capture
+        statusItem = StatusItemController(engine: engine) { capture.show() }
 
         let hotkey = GlobalHotkeyManager(keyCode: UInt32(kVK_Space), modifiers: UInt32(cmdKey | shiftKey)) {
             MainActor.assumeIsolated { capture.toggle() }

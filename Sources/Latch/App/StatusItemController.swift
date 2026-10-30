@@ -9,11 +9,13 @@ import SwiftUI
 ///   so the item looks and tints like the system's own;
 /// - `autosaveName` keeps the position the user ⌘-drags it to (for example, away from the notch);
 /// - the popover lives in a `PopoverPanel` anchored under the item;
+/// - right-click (or control-click) opens a native menu of the current state's actions;
 /// - when macOS hides the item (behind the notch, or crowded out), it collapses to the glyph and
 ///   time, then periodically retries the full width.
 @MainActor
 final class StatusItemController: NSObject {
     private let engine: LatchEngine
+    private let onCapture: () -> Void
     private let statusItem: NSStatusItem
     private let hosting: NSHostingController<AnyView>
     private let panel: PopoverPanel
@@ -28,8 +30,9 @@ final class StatusItemController: NSObject {
     private var retryTimer: Timer?
     private static let compactRetryInterval: TimeInterval = 300
 
-    init(engine: LatchEngine) {
+    init(engine: LatchEngine, onCapture: @escaping () -> Void) {
         self.engine = engine
+        self.onCapture = onCapture
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         hosting = NSHostingController(rootView: AnyView(RootPopoverView().environmentObject(engine)))
         panel = PopoverPanel(content: hosting)
@@ -146,8 +149,90 @@ final class StatusItemController: NSObject {
     // MARK: - Popover
 
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
-        togglePanel()
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            showMenu()
+        } else {
+            togglePanel()
+        }
     }
+
+    // MARK: - Menu
+
+    private var session: ActiveSession? {
+        switch engine.state {
+        case let .latchedFocus(session), let .stateDumpGate(session): session
+        case .permissionsRequired, .unlatchedSelector: nil
+        }
+    }
+
+    private func showMenu() {
+        closePanel(returningFocus: false)
+        // Attach the menu only for this click, so a left click still opens the popover.
+        statusItem.menu = buildMenu()
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    private func buildMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        let status = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
+        status.isEnabled = false
+        menu.addItem(status)
+        menu.addItem(.separator())
+
+        menu.addItem(item("Open Latch", #selector(openFromMenu)))
+        let isLatched: Bool
+        if case .latchedFocus = engine.state { isLatched = true } else { isLatched = false }
+        menu.addItem(item("Complete", #selector(completeFromMenu), key: "\r", enabled: session != nil))
+        menu.addItem(item("Unlatch", #selector(unlatchFromMenu), key: ".", enabled: isLatched))
+        if let pinned = session?.pinnedApp {
+            menu.addItem(item("Refocus \(pinned.name)", #selector(refocusFromMenu), key: "g", enabled: isLatched))
+        }
+        menu.addItem(.separator())
+        menu.addItem(item("Capture…", #selector(captureFromMenu), key: " ", modifiers: [.command, .shift]))
+        menu.addItem(.separator())
+        menu.addItem(item("Quit Latch", #selector(quitFromMenu), key: "q"))
+        return menu
+    }
+
+    private func item(
+        _ title: String,
+        _ action: Selector,
+        key: String = "",
+        modifiers: NSEvent.ModifierFlags = .command,
+        enabled: Bool = true
+    ) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.keyEquivalentModifierMask = key.isEmpty ? [] : modifiers
+        item.target = self
+        item.isEnabled = enabled
+        return item
+    }
+
+    /// `Latched · 18m left`, `Paused · log your next step`, or `Not latched`.
+    private func statusLine() -> String {
+        switch engine.state {
+        case .latchedFocus:
+            if engine.isOvertime { return "Overtime · " + MenuBarToken.timeLabel(remainingSeconds: engine.remainingSeconds) }
+            return "Latched · " + MenuBarToken.timeLabel(remainingSeconds: engine.remainingSeconds) + " left"
+        case .stateDumpGate: return "Paused · log your next step"
+        case .permissionsRequired: return "Reminders access needed"
+        case .unlatchedSelector: return "Not latched"
+        }
+    }
+
+    @objc private func openFromMenu() { if !panel.isVisible { openPanel() } }
+    @objc private func completeFromMenu() { engine.complete() }
+    @objc private func unlatchFromMenu() {
+        engine.unlatch()
+        openPanel() // the state dump needs an answer
+    }
+    @objc private func refocusFromMenu() { engine.refocusPinnedApp() }
+    @objc private func captureFromMenu() { onCapture() }
+    @objc private func quitFromMenu() { NSApp.terminate(nil) }
 
     func togglePanel() {
         if panel.isVisible {
