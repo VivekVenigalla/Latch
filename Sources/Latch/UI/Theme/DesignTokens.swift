@@ -55,14 +55,6 @@ enum Tokens {
         }
     }
 
-    static func shutterTint(_ phase: ShutterPhase) -> Color {
-        switch phase {
-        case .running: emerald
-        case .clamped, .overtime, .paused, .drifting: amber
-        case .idle: silver
-        }
-    }
-
     static func color(for band: PriorityBand) -> Color {
         switch band {
         case .high: coral
@@ -81,9 +73,6 @@ enum LatchFont {
     static let keycap = Font.system(size: 10, weight: .medium, design: .monospaced)
     static let label = Font.system(size: 9.5, weight: .semibold, design: .monospaced)
     static let button = Font.system(size: 12, weight: .medium, design: .default)
-
-    /// AppKit twin of `timer`, for the rendered menu bar glyph.
-    static let menuBarNSFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
 }
 
 // MARK: - Components

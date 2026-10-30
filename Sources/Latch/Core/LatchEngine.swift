@@ -97,26 +97,6 @@ final class LatchEngine: ObservableObject {
         return false
     }
 
-    /// Current Shutter glyph geometry, shared by the menu bar and the popover.
-    var shutter: ShutterLayout {
-        switch state {
-        case let .latchedFocus(session):
-            if remainingSeconds < 0 {
-                return ShutterLayout(phase: .overtime, overtimeSeconds: -remainingSeconds)
-            }
-            // Drifting blinks the bolt hollow on alternate seconds: a peripheral nudge, not an alarm.
-            let blinkOff = isDrifting && Int(Date.now.timeIntervalSince1970) % 2 == 0
-            return ShutterLayout(
-                phase: blinkOff ? .drifting : (session.isClamped ? .clamped : .running),
-                remainingFraction: session.progressRemaining(remainingSeconds: remainingSeconds))
-        case let .stateDumpGate(session):
-            let remainingAtPause = session.targetEndDate.timeIntervalSince(session.pausedAt ?? .now)
-            return ShutterLayout(phase: .paused, remainingFraction: session.progressRemaining(remainingSeconds: remainingAtPause))
-        case .permissionsRequired, .unlatchedSelector:
-            return ShutterLayout(phase: .idle)
-        }
-    }
-
     /// Truncated task title shown beside the menu bar glyph, if any.
     var tokenTitle: String? {
         switch state {
