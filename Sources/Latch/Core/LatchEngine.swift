@@ -125,6 +125,35 @@ final class LatchEngine: ObservableObject {
         }
     }
 
+    /// Current Deadbolt token geometry, shared by the menu bar and the popover.
+    var deadbolt: DeadboltLayout {
+        switch state {
+        case let .latchedFocus(session):
+            if remainingSeconds < 0 { return DeadboltLayout(phase: .overtime) }
+            // Drifting blinks the bolt hollow on alternate seconds: a peripheral nudge, not an alarm.
+            let blinkOff = isDrifting && Int(Date.now.timeIntervalSince1970) % 2 == 0
+            return DeadboltLayout(
+                phase: blinkOff ? .drifting : (session.isClamped ? .clamped : .running),
+                elapsedFraction: 1 - session.progressRemaining(remainingSeconds: remainingSeconds))
+        case let .stateDumpGate(session):
+            let remainingAtPause = session.targetEndDate.timeIntervalSince(session.pausedAt ?? .now)
+            return DeadboltLayout(
+                phase: .paused,
+                elapsedFraction: 1 - session.progressRemaining(remainingSeconds: remainingAtPause))
+        case .permissionsRequired, .unlatchedSelector:
+            return DeadboltLayout(phase: .idle)
+        }
+    }
+
+    /// Coarse time beside the menu bar glyph (`18m`, `45s`, `+2m`, `paused`); `nil` when idle.
+    var tokenTime: String? {
+        switch state {
+        case .latchedFocus: MenuBarToken.timeLabel(remainingSeconds: remainingSeconds)
+        case .stateDumpGate: MenuBarToken.pausedLabel
+        case .permissionsRequired, .unlatchedSelector: nil
+        }
+    }
+
     /// Text equivalent of the glyph, including the exact time (used for accessibility).
     var glanceText: String {
         switch state {
