@@ -8,7 +8,9 @@ import SwiftUI
 /// - the Deadbolt glyph is a template image and the time/title are a native attributed title,
 ///   so the item looks and tints like the system's own;
 /// - `autosaveName` keeps the position the user ⌘-drags it to (for example, away from the notch);
-/// - the popover lives in a `PopoverPanel` anchored under the item.
+/// - the popover lives in a `PopoverPanel` anchored under the item;
+/// - when macOS hides the item (behind the notch, or crowded out), it collapses to the glyph and
+///   time, then periodically retries the full width.
 @MainActor
 final class StatusItemController: NSObject {
     private let engine: LatchEngine
@@ -21,6 +23,10 @@ final class StatusItemController: NSObject {
     /// Clicking the item while the panel is open resigns the panel first; this stops that
     /// same click from immediately reopening it.
     private var lastResignClose = Date.distantPast
+    /// Title dropped because the full-width item was hidden.
+    private var isCompact = false
+    private var retryTimer: Timer?
+    private static let compactRetryInterval: TimeInterval = 300
 
     init(engine: LatchEngine) {
         self.engine = engine
@@ -46,6 +52,13 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
+            .filter { [weak self] note in (note.object as? NSWindow) === self?.statusItem.button?.window }
+            .sink { [weak self] _ in self?.checkVisibility() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
+            .sink { [weak self] _ in self?.retryFullWidth() }
+            .store(in: &cancellables)
         refresh()
     }
 
@@ -60,11 +73,14 @@ final class StatusItemController: NSObject {
             renderedLayout = layout
         }
 
+        if engine.tokenTime == nil { setCompact(false) }
         let title = tokenTitle()
         if title != renderedTitle {
             button.attributedTitle = title
             button.imagePosition = title.length == 0 ? .imageOnly : .imageLeading
             renderedTitle = title
+            // Measure after the status bar has laid out the new width.
+            DispatchQueue.main.async { [weak self] in self?.checkVisibility() }
         }
 
         button.setAccessibilityLabel(engine.glanceText)
@@ -78,13 +94,53 @@ final class StatusItemController: NSObject {
             .font: NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .semibold),
             .foregroundColor: NSColor.labelColor,
         ])
-        if let title = engine.tokenTitle {
+        if !isCompact, let title = engine.tokenTitle {
             result.append(NSAttributedString(string: "  " + title, attributes: [
                 .font: NSFont.menuBarFont(ofSize: 0),
                 .foregroundColor: NSColor.labelColor,
             ]))
         }
         return result
+    }
+
+    // MARK: - Staying visible
+
+    /// `false` when macOS isn't showing the item: occluded, or outside the usable menu bar
+    /// area on a notched display (items that don't fit are parked behind the notch).
+    private var isItemVisible: Bool {
+        guard let window = statusItem.button?.window, let screen = window.screen else { return false }
+        guard window.occlusionState.contains(.visible) else { return false }
+        guard let rightOfNotch = screen.auxiliaryTopRightArea else { return true }
+        // The auxiliary areas may be screen-local; shift them into global space if so.
+        let offset = rightOfNotch.maxX <= screen.frame.width + 0.5 ? screen.frame.minX : 0
+        let frame = window.frame
+        return frame.minX >= rightOfNotch.minX + offset - 1 && frame.maxX <= rightOfNotch.maxX + offset + 1
+    }
+
+    private func checkVisibility() {
+        guard engine.tokenTitle != nil, !isCompact, !isItemVisible else { return }
+        setCompact(true)
+        refresh()
+    }
+
+    /// Try the full title again; `checkVisibility` collapses it straight back if it doesn't fit.
+    private func retryFullWidth() {
+        guard isCompact else { return }
+        setCompact(false)
+        refresh()
+    }
+
+    private func setCompact(_ compact: Bool) {
+        guard compact != isCompact else { return }
+        isCompact = compact
+        retryTimer?.invalidate()
+        retryTimer = nil
+        guard compact else { return }
+        let timer = Timer(timeInterval: Self.compactRetryInterval, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.retryFullWidth() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        retryTimer = timer
     }
 
     // MARK: - Popover
