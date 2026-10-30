@@ -2,10 +2,11 @@ import XCTest
 @testable import LatchCore
 
 final class DeadboltLayoutTests: XCTestCase {
-    func testIdleIsAnOpenLatch() {
+    func testIdleIsAnUnlockedLatch() {
         let idle = DeadboltLayout(phase: .idle, elapsedFraction: 0.7)
-        XCTAssertFalse(idle.showsBolt)
         XCTAssertEqual(idle.throwFraction, 0)
+        XCTAssertEqual(idle.boltTipX, DeadboltLayout.retractedTipX)
+        XCTAssertFalse(idle.isBoltHollow)
     }
 
     func testBoltSlidesTowardTheKeeperAsTimeIsSpent() {
@@ -38,7 +39,7 @@ final class DeadboltLayoutTests: XCTestCase {
         let thrown = base.throwing(to: 1)
         XCTAssertEqual(thrown.phase, .clamped)
         XCTAssertTrue(thrown.isSeated)
-        XCTAssertTrue(DeadboltLayout(phase: .idle).throwing(to: 0.5).showsBolt)
+        XCTAssertEqual(DeadboltLayout(phase: .idle).throwing(to: 0.5).phase, .running)
     }
 
     func testEverythingStaysInsideTheFixedBox() {

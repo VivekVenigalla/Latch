@@ -22,9 +22,7 @@ enum DeadboltRenderer {
             keeper.lineJoinStyle = .miter
             keeper.stroke()
 
-            if layout.showsBolt {
-                drawBolt(layout)
-            }
+            drawBolt(layout)
             return true
         }
         image.isTemplate = true

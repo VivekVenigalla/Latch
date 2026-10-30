@@ -9,7 +9,8 @@ public enum LatchGlyphPhase: Equatable, Sendable {
 
 /// Geometry for the "Deadbolt" token: a housing on the left, a keeper (strike plate) on the
 /// right, and a bolt that slides out of the housing as focus time is spent. At 00:00 the bolt
-/// is seated in the keeper — the task is latched.
+/// is seated in the keeper — the task is latched. When idle the bolt rests retracted: an
+/// unlocked deadbolt.
 ///
 /// Coordinates are in a fixed 28×16 unit box, y-down, sized for a template image in the macOS
 /// menu bar. The box never changes width, so the text beside it never shifts. Both the AppKit
@@ -52,9 +53,6 @@ public struct DeadboltLayout: Equatable, Sendable {
     public func throwing(to fraction: CGFloat) -> DeadboltLayout {
         DeadboltLayout(phase: phase == .idle ? .running : phase, elapsedFraction: Double(fraction))
     }
-
-    /// Idle shows an open latch: housing and keeper, no bolt.
-    public var showsBolt: Bool { phase != .idle }
 
     /// Paused and drifting draw the bolt as an outline rather than solid.
     public var isBoltHollow: Bool { phase == .paused || phase == .drifting }
