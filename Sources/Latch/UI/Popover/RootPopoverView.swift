@@ -95,12 +95,12 @@ private struct PermissionsView: View {
 struct PopoverHeader: View {
     let label: String
     var labelColor: Color = Tokens.silver
-    var glyph: ShutterLayout?
+    var glyph: DeadboltLayout?
 
     var body: some View {
         HStack(spacing: 8) {
             if let glyph {
-                ShutterGlyphView(layout: glyph, scale: 0.75)
+                DeadboltGlyphView(layout: glyph, scale: 0.85)
             }
             SectionLabel(label, color: labelColor)
             Spacer()

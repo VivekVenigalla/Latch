@@ -25,7 +25,7 @@ struct LatchedFocusView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 10) {
-                    ShutterGlyphView(layout: engine.shutter, scale: 1.6)
+                    DeadboltGlyphView(layout: engine.deadbolt, scale: 2)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(TimeFormat.clock(engine.remainingSeconds))
                             .font(LatchFont.timer)

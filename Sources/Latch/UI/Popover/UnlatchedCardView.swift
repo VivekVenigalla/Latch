@@ -15,7 +15,7 @@ struct UnlatchedCardView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                PopoverHeader(label: filterMode == .quick ? "NEXT · QUICK ≤15m" : "NEXT", glyph: engine.shutter)
+                PopoverHeader(label: filterMode == .quick ? "NEXT · QUICK ≤15m" : "NEXT", glyph: engine.deadbolt)
 
                 ZStack(alignment: .topLeading) {
                     if let candidate {
