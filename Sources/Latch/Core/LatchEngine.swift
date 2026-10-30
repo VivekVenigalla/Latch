@@ -116,7 +116,7 @@ final class LatchEngine: ObservableObject {
     }
 
     /// Truncated task title shown beside the menu bar glyph, if any.
-    var shutterTitle: String? {
+    var tokenTitle: String? {
         switch state {
         case let .latchedFocus(session), let .stateDumpGate(session):
             GlancePill.truncate(session.task.title)

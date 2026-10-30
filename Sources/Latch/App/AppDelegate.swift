@@ -6,10 +6,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let engine = LatchEngine()
     private var hotkey: GlobalHotkeyManager?
     private var capture: BlindCaptureController?
+    private var statusItem: StatusItemController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement covers the bundled app; this also keeps `swift run` out of the Dock.
         NSApp.setActivationPolicy(.accessory)
+
+        statusItem = StatusItemController(engine: engine)
 
         let capture = BlindCaptureController(eventKit: engine.eventKit)
         self.capture = capture

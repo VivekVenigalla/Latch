@@ -28,10 +28,11 @@ struct RootPopoverView: View {
         .clipped()
         .background {
             ZStack {
-                Rectangle().fill(.ultraThinMaterial)
+                VisualEffectBackground()
                 Tokens.obsidian.opacity(0.65)
             }
         }
+        .clipShape(RoundedRectangle(cornerRadius: Tokens.windowCornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: Tokens.windowCornerRadius, style: .continuous)
                 .strokeBorder(Tokens.perimeter, lineWidth: 1)
@@ -108,6 +109,26 @@ struct PopoverHeader: View {
                 .keyboardShortcut("q", modifiers: .command)
                 .help("Quit Latch")
         }
+    }
+}
+
+// MARK: - Window chrome
+
+/// Behind-window blur for the popover panel, the AppKit counterpart of `.ultraThinMaterial`.
+struct VisualEffectBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .hudWindow
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = .behindWindow
+        view.state = .active
+        view.appearance = NSAppearance(named: .darkAqua)
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.material = material
     }
 }
 
