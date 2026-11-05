@@ -220,6 +220,9 @@ final class StatusItemController: NSObject {
         if let pinned = session?.pinnedApp {
             menu.addItem(item("Refocus \(pinned.name)", #selector(refocusFromMenu), key: "g", enabled: isLatched))
         }
+        if session != nil, let target = engine.driftTarget ?? engine.focusTarget, target.suggestedItem != nil {
+            menu.addItem(item("Assign \(target.displayName) to Task", #selector(assignFromMenu), key: "d"))
+        }
         menu.addItem(.separator())
         menu.addItem(item("Capture…", #selector(captureFromMenu), key: " ", modifiers: [.command, .shift]))
         menu.addItem(.separator())
@@ -260,6 +263,7 @@ final class StatusItemController: NSObject {
         openPanel() // the state dump needs an answer
     }
     @objc private func refocusFromMenu() { engine.refocusPinnedApp() }
+    @objc private func assignFromMenu() { engine.assignCurrentTarget() }
     @objc private func captureFromMenu() { onCapture() }
     @objc private func quitFromMenu() { NSApp.terminate(nil) }
 
