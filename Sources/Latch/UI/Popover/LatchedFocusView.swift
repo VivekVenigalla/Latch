@@ -23,6 +23,11 @@ struct LatchedFocusView: View {
                 progress: engine.isOvertime ? 1 : session.progressRemaining(remainingSeconds: engine.remainingSeconds),
                 tint: tint)
 
+            if engine.isDrifting, let target = engine.driftTarget {
+                DriftBanner(target: target)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .center, spacing: 10) {
                     DeadboltGlyphView(layout: engine.deadbolt, scale: 2, engagedAt: engine.engagedAt)
@@ -79,17 +84,12 @@ struct LatchedFocusView: View {
                 KeycapButton(title: "Unlatch", key: "⌘.") { engine.unlatch() }
                     .keyboardShortcut(".", modifiers: .command)
                 Spacer(minLength: 0)
-                if let reason = session.clampReason {
-                    Text(reason)
-                        .font(LatchFont.keycap)
-                        .foregroundStyle(Tokens.amber)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
+                WorkspaceStrip(workspace: session.scope.workspace)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
         }
+        .animation(Tokens.snap, value: engine.isDrifting)
     }
 }
 
