@@ -210,6 +210,9 @@ final class StatusItemController: NSObject {
         let status = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
+        let today = NSMenuItem(title: "Today · " + engine.today.summary, action: nil, keyEquivalent: "")
+        today.isEnabled = false
+        menu.addItem(today)
         menu.addItem(.separator())
 
         menu.addItem(item("Open Latch", #selector(openFromMenu)))

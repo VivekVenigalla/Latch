@@ -36,6 +36,9 @@ struct UnlatchedCardView: View {
             .padding(.bottom, 10)
 
             Spacer(minLength: 0)
+            TodayStrip()
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
             Hairline()
 
             HStack(spacing: 6) {
