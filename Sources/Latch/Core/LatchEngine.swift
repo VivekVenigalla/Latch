@@ -30,6 +30,8 @@ final class LatchEngine: ObservableObject {
     static let minDurationSeconds = 300
     static let maxDurationSeconds = 3 * 3600
     static let maxMicroSteps = 3
+    /// While a browser is frontmost during a session, its active tab is re-read every 4 ticks (2s).
+    static let tabPollTicks = 4
 
     @Published private(set) var state: AppState = .permissionsRequired
     /// `targetEndDate.timeIntervalSinceNow`, refreshed every 0.5s while latched. Negative = overtime.
@@ -53,6 +55,9 @@ final class LatchEngine: ObservableObject {
 
     let store: TaskStore
     let anchor: WindowAnchorService
+    private let browsers = BrowserBridge()
+    private var tabQueryInFlight = false
+    private var ticksSinceTabPoll = 0
 
     private var candidates: [TaskCandidate] = []
     /// In-memory deferral counts for `Cycle [⇥]`; cleared each time a task is latched.
@@ -286,6 +291,7 @@ final class LatchEngine: ObservableObject {
         hasChimed = false
         state = .latchedFocus(activeTask: session)
         startTicker()
+        capturePinnedSite(of: session)
 
         persist(id: candidate.id) { metadata in
             metadata.durationSec = requested
@@ -299,6 +305,40 @@ final class LatchEngine: ObservableObject {
             appName: app.localizedName ?? app.bundleIdentifier ?? "App",
             isBrowser: SupportedBrowser(bundleID: app.bundleIdentifier) != nil)
         focusChanged(to: target)
+        if target.isBrowser { refreshBrowserTab() }
+    }
+
+    /// When the session starts in a browser, only the site it was on counts as the pinned app.
+    private func capturePinnedSite(of session: ActiveSession) {
+        guard let browser = SupportedBrowser(bundleID: session.pinnedApp?.bundleIdentifier) else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            let url = await self.browsers.activeTabURL(of: browser)
+            guard case var .latchedFocus(current) = self.state, current.startedAt == session.startedAt else { return }
+            current.scope.pinnedHost = url.flatMap(Workspace.normalizedHost)
+            self.state = .latchedFocus(activeTask: current)
+        }
+    }
+
+    /// Re-reads the frontmost browser's active tab and re-judges focus if it moved to another site.
+    private func refreshBrowserTab() {
+        guard !tabQueryInFlight, case .latchedFocus = state,
+              let target = focusTarget, target.isBrowser,
+              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == target.bundleID,
+              let browser = SupportedBrowser(bundleID: target.bundleID) else { return }
+        tabQueryInFlight = true
+        Task { [weak self] in
+            guard let self else { return }
+            let url = await self.browsers.activeTabURL(of: browser)
+            self.tabQueryInFlight = false
+            // The user may have switched apps while the script ran.
+            guard let current = self.focusTarget, current.bundleID == target.bundleID else { return }
+            var updated = current
+            updated.url = url
+            if updated.host != current.host || (current.url == nil) != (url == nil) {
+                self.focusChanged(to: updated)
+            }
+        }
     }
 
     /// Drift Guard: every change of app (or browser tab) while latched either starts or ends an
@@ -399,6 +439,11 @@ final class LatchEngine: ObservableObject {
         remainingSeconds = session.targetEndDate.timeIntervalSinceNow
         isDrifting = session.drift.isDrifting(at: .now)
         driftExcursionSeconds = session.drift.currentExcursion(at: .now)
+        ticksSinceTabPoll += 1
+        if ticksSinceTabPoll >= Self.tabPollTicks {
+            ticksSinceTabPoll = 0
+            refreshBrowserTab()
+        }
         if remainingSeconds <= 0, !hasChimed {
             hasChimed = true
             NSSound(named: "Tink")?.play()
