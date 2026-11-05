@@ -103,6 +103,10 @@ private struct CandidateCard: View {
                 }
                 .help(context)
             }
+
+            if !candidate.metadata.workspace.isEmpty {
+                RestoreRow(workspace: candidate.metadata.workspace)
+            }
         }
     }
 
@@ -176,6 +180,43 @@ private struct DurationDial: View {
         .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Tokens.wellFill))
         .overlay(DialInputCatcher(pointsPerStep: pitch) { engine.adjustDuration(steps: $0) })
         .help("Drag or scroll to adjust in 5m steps")
+    }
+}
+
+/// `[icons] 2 apps · 1 site        Restore [⇧↩]` — latch and reopen the task's workspace.
+private struct RestoreRow: View {
+    @EnvironmentObject private var engine: LatchEngine
+    let workspace: Workspace
+
+    private var summary: String {
+        let apps = workspace.appBundleIDs.count
+        let sites = workspace.siteURLs.count
+        return [
+            apps > 0 ? "\(apps) app\(apps == 1 ? "" : "s")" : nil,
+            sites > 0 ? "\(sites) site\(sites == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(Array(workspace.items.prefix(4)), id: \.self) { WorkspaceItemIcon(item: $0) }
+            Text(summary)
+                .font(LatchFont.meta)
+                .foregroundStyle(Tokens.keycapText)
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            Button { engine.latch(restoring: true) } label: {
+                HStack(spacing: 4) {
+                    Text("Restore")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Tokens.silver)
+                    KeycapBadge("⇧↩")
+                }
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.return, modifiers: .shift)
+            .help("Latch and reopen this task's apps and sites")
+        }
     }
 }
 
