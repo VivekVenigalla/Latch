@@ -56,6 +56,7 @@ final class LatchEngine: ObservableObject {
     let store: TaskStore
     let anchor: WindowAnchorService
     private let browsers = BrowserBridge()
+    private lazy var restorer = WorkspaceRestorer(browsers: browsers)
     private var tabQueryInFlight = false
     private var ticksSinceTabPoll = 0
 
@@ -263,12 +264,17 @@ final class LatchEngine: ObservableObject {
 
     // MARK: - State 2: latchedFocus
 
-    func latch() {
+    /// `Latch [↩]`, or `Latch & Restore [⇧↩]` with `restoring: true`.
+    func latch(restoring: Bool = false) {
         guard let candidate = currentCandidate else { return }
-        latch(onto: candidate)
+        latch(onto: candidate, restoring: restoring)
     }
 
-    func latch(onto candidate: TaskCandidate) {
+    /// Locks onto `candidate`. With `restoring`, its workspace is reopened and the session is
+    /// pinned to the first assigned app rather than whatever was frontmost.
+    func latch(onto candidate: TaskCandidate, restoring: Bool = false) {
+        let workspace = candidate.metadata.workspace
+        let restoring = restoring && !workspace.isEmpty
         let now = Date.now
         let requested = selectedDurationSec
         let blocks = store.calendarBlocks(
@@ -280,7 +286,7 @@ final class LatchEngine: ObservableObject {
             requestedSeconds: requested,
             allocatedSeconds: clamp.allocatedSeconds,
             clampReason: clamp.reason,
-            pinnedApp: anchor.captureFrontmost(),
+            pinnedApp: (restoring ? WorkspaceRestorer.pinnedApp(for: workspace) : nil) ?? anchor.captureFrontmost(),
             driftGraceSeconds: driftGraceSeconds,
             now: now)
 
@@ -292,6 +298,9 @@ final class LatchEngine: ObservableObject {
         state = .latchedFocus(activeTask: session)
         startTicker()
         capturePinnedSite(of: session)
+        if restoring {
+            Task { [weak self] in await self?.restorer.restore(workspace) }
+        }
 
         persist(id: candidate.id) { metadata in
             metadata.durationSec = requested
