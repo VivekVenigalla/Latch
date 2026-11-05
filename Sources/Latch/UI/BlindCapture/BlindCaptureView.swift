@@ -71,11 +71,12 @@ private struct TokenBadges: View {
                     .help("Priority: \(priority.rawValue)")
             }
             if let list = parsed.listName {
-                Text("#\(list)")
+                // Sized to its text: a flexible frame here would take width from the input field.
+                Text("#\(GlancePill.truncate(list, max: 14))")
                     .font(LatchFont.keycap)
                     .foregroundStyle(Tokens.silver)
                     .lineLimit(1)
-                    .frame(maxWidth: 90)
+                    .fixedSize()
             }
         }
         .animation(Tokens.snap, value: parsed)
