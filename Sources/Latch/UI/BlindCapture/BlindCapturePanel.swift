@@ -65,10 +65,10 @@ final class BlindCaptureModel: ObservableObject {
 final class BlindCaptureController {
     private let panel = BlindCapturePanel()
     private let model = BlindCaptureModel()
-    private let eventKit: EventKitService
+    private let store: TaskStore
 
-    init(eventKit: EventKitService) {
-        self.eventKit = eventKit
+    init(store: TaskStore) {
+        self.store = store
         let root = BlindCaptureView(
             model: model,
             onSubmit: { [weak self] in self?.submit() },
@@ -85,11 +85,11 @@ final class BlindCaptureController {
     }
 
     func show() {
-        guard eventKit.remindersAuthorized else {
+        guard store.remindersAuthorized else {
             NSSound.beep()
             return
         }
-        model.prepareForShow(knownLists: eventKit.reminderLists().map(\.title))
+        model.prepareForShow(knownLists: store.reminderListTitles())
         position()
         panel.makeKeyAndOrderFront(nil)
     }
@@ -107,7 +107,7 @@ final class BlindCaptureController {
             return
         }
         do {
-            try eventKit.createReminder(from: capture)
+            try store.createReminder(from: capture)
             hide()
         } catch {
             NSLog("Latch: blind capture failed: \(error.localizedDescription)")

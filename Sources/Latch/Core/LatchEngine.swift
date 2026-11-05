@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import EventKit
 import LatchCore
 
 struct MicroStep: Identifiable, Equatable {
@@ -48,7 +47,7 @@ final class LatchEngine: ObservableObject {
     @Published private(set) var permissionDenied = false
     @Published private(set) var lastError: String?
 
-    let eventKit: EventKitService
+    let store: TaskStore
     let anchor: WindowAnchorService
 
     private var candidates: [TaskCandidate] = []
@@ -61,15 +60,11 @@ final class LatchEngine: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
 
-    init() {
-        eventKit = EventKitService()
+    init(store: TaskStore) {
+        self.store = store
         anchor = WindowAnchorService()
 
-        observers.append(NotificationCenter.default.addObserver(
-            forName: .EKEventStoreChanged, object: eventKit.store, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.storeDidChange() }
-        })
+        store.onChange = { [weak self] in self?.storeDidChange() }
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -161,16 +156,16 @@ final class LatchEngine: ObservableObject {
     // MARK: - Lifecycle
 
     func bootstrap() async {
-        if eventKit.remindersAuthorized {
+        if store.remindersAuthorized {
             await refreshCandidates()
         } else {
-            permissionDenied = eventKit.remindersDenied
+            permissionDenied = store.remindersDenied
             state = .permissionsRequired
         }
     }
 
     func requestPermissions() async {
-        if await eventKit.requestAccess() {
+        if await store.requestAccess() {
             permissionDenied = false
             await refreshCandidates()
         } else {
@@ -194,17 +189,17 @@ final class LatchEngine: ObservableObject {
     // MARK: - State 1: unlatchedSelector
 
     func refreshCandidates() async {
-        guard eventKit.remindersAuthorized else {
-            permissionDenied = eventKit.remindersDenied
+        guard store.remindersAuthorized else {
+            permissionDenied = store.remindersDenied
             state = .permissionsRequired
             return
         }
-        let fetched = await eventKit.fetchCandidates()
+        let fetched = await store.fetchCandidates()
         let now = Date.now
         candidates = fetched
-        upcomingBlocks = eventKit.calendarBlocks(from: now, to: now.addingTimeInterval(24 * 3600))
+        upcomingBlocks = store.calendarBlocks(from: now, to: now.addingTimeInterval(24 * 3600))
 
-        // The user may have latched while EventKit was fetching; never clobber an active session.
+        // The user may have latched while the store was fetching; never clobber an active session.
         switch state {
         case .permissionsRequired: resolve(filter: .all)
         case let .unlatchedSelector(_, mode): resolve(filter: mode)
@@ -267,7 +262,7 @@ final class LatchEngine: ObservableObject {
     func latch(onto candidate: TaskCandidate) {
         let now = Date.now
         let requested = selectedDurationSec
-        let blocks = eventKit.calendarBlocks(
+        let blocks = store.calendarBlocks(
             from: now, to: now.addingTimeInterval(TimeInterval(requested) + CalendarClamp.bufferSeconds))
         let clamp = CalendarClamp.clamp(requestedSeconds: requested, now: now, events: blocks)
 
@@ -333,12 +328,9 @@ final class LatchEngine: ObservableObject {
         stopTicker()
 
         do {
-            try eventKit.updateReminder(id: session.task.id) { reminder in
-                var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
+            try store.completeReminder(id: session.task.id) { metadata in
                 metadata.elapsedSec = session.totalElapsedSeconds()
                 Self.accrueDrift(of: session, into: &metadata)
-                reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
-                reminder.isCompleted = true
             }
             lastError = nil
         } catch {
@@ -448,7 +440,7 @@ final class LatchEngine: ObservableObject {
 
     private func persist(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) {
         do {
-            try eventKit.updateMetadata(id: id, mutate)
+            try store.updateMetadata(id: id, mutate)
             lastError = nil
         } catch {
             lastError = error.localizedDescription
@@ -459,7 +451,7 @@ final class LatchEngine: ObservableObject {
         switch state {
         case let .latchedFocus(session):
             // Completed on another device (e.g. iPhone): release the lock without a state dump.
-            if eventKit.isReminderGone(id: session.task.id) {
+            if store.isReminderGone(id: session.task.id) {
                 stopTicker()
                 returnToSelector(removing: session.task.id)
             }
@@ -470,7 +462,7 @@ final class LatchEngine: ObservableObject {
         }
     }
 
-    /// Coalesces bursts of `.EKEventStoreChanged` into one fetch.
+    /// Coalesces bursts of store change notifications into one fetch.
     private func scheduleRefresh(delayNanoseconds: UInt64 = 300_000_000) {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in

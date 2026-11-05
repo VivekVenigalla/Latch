@@ -16,11 +16,21 @@ enum LatchError: LocalizedError {
 
 /// Thin wrapper over `EKEventStore`. Native EventKit only — never AppleScript/JXA.
 @MainActor
-final class EventKitService {
+final class EventKitService: TaskStore {
     /// Optional UserDefaults key: restrict the candidate queue to one Reminders list by title.
     static let targetListDefaultsKey = "LatchTargetList"
 
     let store = EKEventStore()
+    var onChange: (() -> Void)?
+    private var changeObserver: NSObjectProtocol?
+
+    init() {
+        changeObserver = NotificationCenter.default.addObserver(
+            forName: .EKEventStoreChanged, object: store, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.onChange?() }
+        }
+    }
 
     // MARK: Authorization
 
@@ -42,6 +52,10 @@ final class EventKitService {
     }
 
     // MARK: Reminders
+
+    func reminderListTitles() -> [String] {
+        reminderLists().map(\.title)
+    }
 
     func reminderLists() -> [EKCalendar] {
         guard remindersAuthorized else { return [] }
@@ -95,6 +109,15 @@ final class EventKitService {
             var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
             mutate(&metadata)
             reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
+        }
+    }
+
+    func completeReminder(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) throws {
+        try updateReminder(id: id) { reminder in
+            var metadata = LatchMetadataParser.parse(reminder.notes).metadata ?? LatchMetadata()
+            mutate(&metadata)
+            reminder.notes = LatchMetadataParser.write(metadata, into: reminder.notes)
+            reminder.isCompleted = true
         }
     }
 

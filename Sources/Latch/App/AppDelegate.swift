@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let engine = LatchEngine()
+    let engine = LatchEngine(store: EventKitService())
     private var hotkey: GlobalHotkeyManager?
     private var capture: BlindCaptureController?
     private var statusItem: StatusItemController?
@@ -12,7 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // LSUIElement covers the bundled app; this also keeps `swift run` out of the Dock.
         NSApp.setActivationPolicy(.accessory)
 
-        let capture = BlindCaptureController(eventKit: engine.eventKit)
+        let capture = BlindCaptureController(store: engine.store)
         self.capture = capture
         statusItem = StatusItemController(engine: engine) { capture.show() }
 
