@@ -451,6 +451,54 @@ final class LatchEngine: ObservableObject {
         }
     }
 
+    // MARK: - Workspace
+
+    /// The latched or paused session, if any.
+    var activeSession: ActiveSession? {
+        switch state {
+        case let .latchedFocus(session), let .stateDumpGate(session): session
+        case .permissionsRequired, .unlatchedSelector: nil
+        }
+    }
+
+    /// Assigns `item` to the active task's workspace and saves it to the reminder. If you're
+    /// off-task and the item now covers where you are, the excursion is forgiven.
+    func assignToWorkspace(_ item: WorkspaceItem) {
+        guard var session = activeSession, session.scope.workspace.add(item) else { return }
+        if let target = focusTarget, session.drift.isAway, session.scope.isOnTask(target) {
+            session.drift.forgiveCurrentExcursion()
+            driftTarget = nil
+        }
+        saveWorkspace(of: session) { $0.add(item) }
+    }
+
+    /// `Assign [⌘D]`: adds wherever you drifted to, or else the app (or site) you're in.
+    func assignCurrentTarget() {
+        guard let item = (driftTarget ?? focusTarget)?.suggestedItem else { return }
+        assignToWorkspace(item)
+    }
+
+    func removeFromWorkspace(_ item: WorkspaceItem) {
+        guard var session = activeSession, session.scope.workspace.remove(item) else { return }
+        saveWorkspace(of: session) { $0.remove(item) }
+    }
+
+    /// Writes the session's workspace back into the state, the reminder and the candidate cache.
+    private func saveWorkspace(of session: ActiveSession, _ change: @escaping (inout Workspace) -> Void) {
+        var session = session
+        session.task.metadata.workspace = session.scope.workspace
+        switch state {
+        case .latchedFocus: state = .latchedFocus(activeTask: session)
+        case .stateDumpGate: state = .stateDumpGate(completedSession: session)
+        case .permissionsRequired, .unlatchedSelector: return
+        }
+        persist(id: session.task.id) { change(&$0.workspace) }
+        if let index = candidates.firstIndex(where: { $0.id == session.task.id }) {
+            candidates[index].metadata.workspace = session.scope.workspace
+        }
+        tick()
+    }
+
     // MARK: - State 3: stateDumpGate
 
     /// Logs the next physical action and releases the lock. Returns `false` if `note` is blank.
