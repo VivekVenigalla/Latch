@@ -53,9 +53,9 @@ final class BlindCaptureModel: ObservableObject {
     @Published private(set) var focusToken = 0
     var knownLists: [String] = []
 
-    func prepareForShow(knownLists: [String]) {
+    func prepareForShow(knownLists: [String], prefill: String = "") {
         self.knownLists = knownLists
-        text = ""
+        text = prefill
         focusToken += 1
     }
 }
@@ -84,15 +84,18 @@ final class BlindCaptureController {
         panel.isVisible ? hide() : show()
     }
 
-    func show() {
+    /// Shows the panel; `prefill` seeds the field (demo mode uses it for screenshots).
+    func show(prefill: String = "") {
         guard store.remindersAuthorized else {
             NSSound.beep()
             return
         }
-        model.prepareForShow(knownLists: store.reminderListTitles())
+        model.prepareForShow(knownLists: store.reminderListTitles(), prefill: prefill)
         position()
         panel.makeKeyAndOrderFront(nil)
     }
+
+    var windowNumber: Int? { panel.isVisible ? panel.windowNumber : nil }
 
     func hide() {
         guard panel.isVisible else { return }

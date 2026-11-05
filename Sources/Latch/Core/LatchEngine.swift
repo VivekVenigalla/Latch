@@ -280,11 +280,16 @@ final class LatchEngine: ObservableObject {
     }
 
     /// Locks onto `candidate`. With `restoring`, its workspace is reopened and the session is
-    /// pinned to the first assigned app rather than whatever was frontmost.
-    func latch(onto candidate: TaskCandidate, restoring: Bool = false) {
+    /// pinned to the first assigned app rather than whatever was frontmost. `pinnedApp` and
+    /// `now` override the captured app and start time (demo mode stages sessions this way).
+    func latch(
+        onto candidate: TaskCandidate,
+        restoring: Bool = false,
+        pinnedApp overridePinnedApp: PinnedApp? = nil,
+        now: Date = .now
+    ) {
         let workspace = candidate.metadata.workspace
         let restoring = restoring && !workspace.isEmpty
-        let now = Date.now
         let requested = selectedDurationSec
         let blocks = store.calendarBlocks(
             from: now, to: now.addingTimeInterval(TimeInterval(requested) + CalendarClamp.bufferSeconds))
@@ -295,7 +300,9 @@ final class LatchEngine: ObservableObject {
             requestedSeconds: requested,
             allocatedSeconds: clamp.allocatedSeconds,
             clampReason: clamp.reason,
-            pinnedApp: (restoring ? WorkspaceRestorer.pinnedApp(for: workspace) : nil) ?? anchor.captureFrontmost(),
+            pinnedApp: overridePinnedApp
+                ?? (restoring ? WorkspaceRestorer.pinnedApp(for: workspace) : nil)
+                ?? anchor.captureFrontmost(),
             driftGraceSeconds: driftGraceSeconds,
             now: now)
 

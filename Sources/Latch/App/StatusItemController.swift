@@ -33,7 +33,7 @@ final class StatusItemController: NSObject {
     private var engageTimer: Timer?
     private static let compactRetryInterval: TimeInterval = 300
 
-    init(engine: LatchEngine, onCapture: @escaping () -> Void) {
+    init(engine: LatchEngine, autosaveName: String = "LatchStatusItem", onCapture: @escaping () -> Void) {
         self.engine = engine
         self.onCapture = onCapture
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -41,7 +41,7 @@ final class StatusItemController: NSObject {
         panel = PopoverPanel(content: hosting)
         super.init()
 
-        statusItem.autosaveName = "LatchStatusItem"
+        statusItem.autosaveName = autosaveName
         statusItem.behavior = []
         if let button = statusItem.button {
             button.target = self
@@ -135,6 +135,16 @@ final class StatusItemController: NSObject {
         engageTimer = timer
     }
 
+    // MARK: - Geometry (used by demo mode's screenshot report)
+
+    /// The status item's frame in global screen coordinates, if it is placed.
+    var itemFrameOnScreen: NSRect? {
+        guard let button = statusItem.button, let window = button.window else { return nil }
+        return window.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
+    var panelWindowNumber: Int? { panel.isVisible ? panel.windowNumber : nil }
+
     // MARK: - Staying visible
 
     /// `false` when macOS isn't showing the item: occluded, or outside the usable menu bar
@@ -195,7 +205,7 @@ final class StatusItemController: NSObject {
         }
     }
 
-    private func showMenu() {
+    func showMenu() {
         closePanel(returningFocus: false)
         // Attach the menu only for this click, so a left click still opens the popover.
         statusItem.menu = buildMenu()
@@ -279,7 +289,7 @@ final class StatusItemController: NSObject {
         openPanel()
     }
 
-    private func openPanel() {
+    func openPanel() {
         fitPanel()
         NSApp.activate()
         panel.makeKeyAndOrderFront(nil)
