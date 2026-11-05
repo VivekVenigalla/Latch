@@ -38,10 +38,14 @@ final class LatchEngine: ObservableObject {
     /// Preview of the calendar clamp for the current candidate and selected duration.
     @Published private(set) var clampPreview: ClampResult?
     @Published private(set) var microSteps: [MicroStep] = []
-    /// Drift Guard: away from the pinned app for longer than the grace period.
+    /// Drift Guard: off-task (outside the workspace and pinned app) for longer than the grace period.
     @Published private(set) var isDrifting = false
-    /// Length of the current excursion away from the pinned app (0 when on it).
+    /// Length of the current excursion off-task (0 when on-task).
     @Published private(set) var driftExcursionSeconds: TimeInterval = 0
+    /// The app (and browser tab) the user is in, outside Latch.
+    @Published private(set) var focusTarget: FocusTarget?
+    /// Where the user went while off-task; `nil` when on-task.
+    @Published private(set) var driftTarget: FocusTarget?
     /// When the last latch happened; drives the engage animation in the menu bar and popover.
     @Published private(set) var engagedAt: Date?
     @Published private(set) var permissionDenied = false
@@ -289,14 +293,27 @@ final class LatchEngine: ObservableObject {
         }
     }
 
-    /// Drift Guard: every app switch while latched either starts or ends an excursion.
     private func appDidActivate(_ app: NSRunningApplication) {
-        guard driftGuardEnabled, case var .latchedFocus(session) = state, let pinned = session.pinnedApp else { return }
-        let now = Date.now
-        if anchor.matches(app, pinned) {
-            session.drift.returnToAnchor(at: now)
+        let target = FocusTarget(
+            bundleID: app.bundleIdentifier,
+            appName: app.localizedName ?? app.bundleIdentifier ?? "App",
+            isBrowser: SupportedBrowser(bundleID: app.bundleIdentifier) != nil)
+        focusChanged(to: target)
+    }
+
+    /// Drift Guard: every change of app (or browser tab) while latched either starts or ends an
+    /// excursion, depending on whether the session's scope covers it.
+    func focusChanged(to target: FocusTarget, at date: Date = .now) {
+        focusTarget = target
+        guard driftGuardEnabled, case var .latchedFocus(session) = state else { return }
+        // Nothing to anchor to (no pinned app, empty workspace): Drift Guard stays out of the way.
+        guard session.scope.pinnedBundleID != nil || !session.scope.workspace.isEmpty else { return }
+        if session.scope.isOnTask(target) {
+            session.drift.returnToAnchor(at: date)
+            driftTarget = nil
         } else {
-            session.drift.leave(at: now)
+            session.drift.leave(at: date)
+            driftTarget = target
         }
         state = .latchedFocus(activeTask: session)
         tick()
@@ -436,6 +453,7 @@ final class LatchEngine: ObservableObject {
     private func clearDriftReadout() {
         isDrifting = false
         driftExcursionSeconds = 0
+        driftTarget = nil
     }
 
     private func persist(id: String, _ mutate: @escaping (inout LatchMetadata) -> Void) {

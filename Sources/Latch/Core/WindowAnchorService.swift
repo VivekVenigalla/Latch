@@ -59,13 +59,6 @@ final class WindowAnchorService {
         }
     }
 
-    /// `true` when `app` is the pinned app, matched by process, or by bundle id after a relaunch.
-    func matches(_ app: NSRunningApplication, _ pinned: PinnedApp) -> Bool {
-        if app.processIdentifier == pinned.processIdentifier { return true }
-        guard let id = pinned.bundleIdentifier else { return false }
-        return app.bundleIdentifier == id
-    }
-
     private func runningApp(for pinned: PinnedApp) -> NSRunningApplication? {
         if let app = NSRunningApplication(processIdentifier: pinned.processIdentifier), !app.isTerminated {
             return app
