@@ -3,10 +3,18 @@ import Carbon.HIToolbox
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let engine = LatchEngine(store: EventKitService(), ledger: LedgerStore())
+    let engine: LatchEngine
     private var hotkey: GlobalHotkeyManager?
     private var capture: BlindCaptureController?
     private var statusItem: StatusItemController?
+
+    override init() {
+        // Demo mode (a launch argument) runs on sample data and an in-memory ledger.
+        engine = DemoMode.isActive
+            ? LatchEngine(store: DemoTaskStore(), ledger: LedgerStore(defaults: nil))
+            : LatchEngine(store: EventKitService(), ledger: LedgerStore())
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // LSUIElement covers the bundled app; this also keeps `swift run` out of the Dock.
@@ -14,7 +22,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let capture = BlindCaptureController(store: engine.store)
         self.capture = capture
-        statusItem = StatusItemController(engine: engine) { capture.show() }
+        statusItem = StatusItemController(
+            engine: engine,
+            autosaveName: DemoMode.isActive ? "LatchDemoStatusItem" : "LatchStatusItem"
+        ) { capture.show() }
+
+        if DemoMode.isActive {
+            Task { await engine.bootstrap() }
+            return
+        }
 
         let hotkey = GlobalHotkeyManager(keyCode: UInt32(kVK_Space), modifiers: UInt32(cmdKey | shiftKey)) {
             MainActor.assumeIsolated { capture.toggle() }
