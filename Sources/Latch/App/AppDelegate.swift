@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    let engine = LatchEngine(store: EventKitService())
+    let engine = LatchEngine(store: EventKitService(), ledger: LedgerStore())
     private var hotkey: GlobalHotkeyManager?
     private var capture: BlindCaptureController?
     private var statusItem: StatusItemController?

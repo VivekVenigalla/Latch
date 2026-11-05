@@ -55,6 +55,7 @@ final class LatchEngine: ObservableObject {
 
     let store: TaskStore
     let anchor: WindowAnchorService
+    let ledger: LedgerStore
     private let browsers = BrowserBridge()
     private lazy var restorer = WorkspaceRestorer(browsers: browsers)
     private var tabQueryInFlight = false
@@ -70,8 +71,9 @@ final class LatchEngine: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
 
-    init(store: TaskStore) {
+    init(store: TaskStore, ledger: LedgerStore) {
         self.store = store
+        self.ledger = ledger
         anchor = WindowAnchorService()
 
         store.onChange = { [weak self] in self?.storeDidChange() }
@@ -139,6 +141,13 @@ final class LatchEngine: ObservableObject {
         case .stateDumpGate: MenuBarToken.pausedLabel
         case .permissionsRequired, .unlatchedSelector: nil
         }
+    }
+
+    /// Today's ledger including the session in progress, for display.
+    var today: DayLedger {
+        let base = ledger.today()
+        guard let session = activeSession else { return base }
+        return base.including(liveSeconds: session.sessionElapsedSeconds(), liveDriftSeconds: session.driftSeconds())
     }
 
     /// Text equivalent of the glyph, including the exact time (used for accessibility).
@@ -403,6 +412,7 @@ final class LatchEngine: ObservableObject {
             lastError = error.localizedDescription
         }
 
+        recordInLedger(session, completed: true)
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
         if let tick = NSSound(named: "Pop") {
             tick.volume = 0.35
@@ -527,6 +537,7 @@ final class LatchEngine: ObservableObject {
             candidates[index].metadata.elapsedSec = session.totalElapsedSeconds()
             Self.accrueDrift(of: session, into: &candidates[index].metadata)
         }
+        recordInLedger(session, completed: false)
         // Surface something else first; the deferred task comes back on the next cycle.
         sessionSkipCounts[session.task.id, default: 0] += 1
         returnToSelector(removing: nil)
@@ -552,6 +563,13 @@ final class LatchEngine: ObservableObject {
         metadata.driftSec = (metadata.driftSec ?? 0) + drift
     }
 
+    private func recordInLedger(_ session: ActiveSession, completed: Bool) {
+        ledger.record(
+            sessionSeconds: session.sessionElapsedSeconds(),
+            driftSeconds: session.driftSeconds(),
+            completed: completed)
+    }
+
     private func clearDriftReadout() {
         isDrifting = false
         driftExcursionSeconds = 0
@@ -573,6 +591,7 @@ final class LatchEngine: ObservableObject {
             // Completed on another device (e.g. iPhone): release the lock without a state dump.
             if store.isReminderGone(id: session.task.id) {
                 stopTicker()
+                recordInLedger(session, completed: true)
                 returnToSelector(removing: session.task.id)
             }
         case .stateDumpGate:
