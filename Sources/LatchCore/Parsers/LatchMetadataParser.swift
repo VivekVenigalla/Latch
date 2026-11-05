@@ -9,6 +9,8 @@ public struct LatchMetadata: Equatable, Sendable {
     public var deferredCount: Int?
     /// Lifetime Drift Guard time: seconds spent away from the pinned app while latched.
     public var driftSec: Int?
+    /// Apps and sites assigned to the task (Drift Guard treats them as on-task).
+    public var workspace: Workspace
     public var lastLatched: Date?
 
     public init(
@@ -17,6 +19,7 @@ public struct LatchMetadata: Equatable, Sendable {
         context: String? = nil,
         deferredCount: Int? = nil,
         driftSec: Int? = nil,
+        workspace: Workspace = Workspace(),
         lastLatched: Date? = nil
     ) {
         self.durationSec = durationSec
@@ -24,12 +27,13 @@ public struct LatchMetadata: Equatable, Sendable {
         self.context = context
         self.deferredCount = deferredCount
         self.driftSec = driftSec
+        self.workspace = workspace
         self.lastLatched = lastLatched
     }
 
     public var isEmpty: Bool {
         durationSec == nil && elapsedSec == nil && context == nil && deferredCount == nil
-            && driftSec == nil && lastLatched == nil
+            && driftSec == nil && workspace.isEmpty && lastLatched == nil
     }
 }
 
@@ -55,8 +59,11 @@ public struct ParsedNotes: Equatable, Sendable {
 ///     context: Check line 142 in AuthController.swift
 ///     deferred_count: 1
 ///     drift_sec: 95
+///     workspace_app: com.apple.dt.Xcode
+///     workspace_site: https://github.com/acme/api/pull/42
 ///     last_latched: 2026-10-29T14:30:00Z
 ///
+/// `workspace_app` and `workspace_site` may repeat, one line per assigned app or site.
 /// Parsing is forgiving: unknown keys are ignored, unparseable values become `nil`, and the
 /// block ends at the first line that is not `key: value`, so any text the user typed below
 /// the block is preserved as user notes rather than silently dropped.
@@ -69,6 +76,8 @@ public enum LatchMetadataParser {
         case context
         case deferredCount = "deferred_count"
         case driftSec = "drift_sec"
+        case workspaceApp = "workspace_app"
+        case workspaceSite = "workspace_site"
         case lastLatched = "last_latched"
     }
 
@@ -122,6 +131,8 @@ public enum LatchMetadataParser {
         if let v = metadata.context { lines.append("\(Key.context.rawValue): \(singleLine(v))") }
         if let v = metadata.deferredCount { lines.append("\(Key.deferredCount.rawValue): \(v)") }
         if let v = metadata.driftSec { lines.append("\(Key.driftSec.rawValue): \(v)") }
+        for id in metadata.workspace.appBundleIDs { lines.append("\(Key.workspaceApp.rawValue): \(id)") }
+        for url in metadata.workspace.siteURLs { lines.append("\(Key.workspaceSite.rawValue): \(url.absoluteString)") }
         if let v = metadata.lastLatched { lines.append("\(Key.lastLatched.rawValue): \(v.formatted(.iso8601))") }
         return lines.joined(separator: "\n")
     }
@@ -144,6 +155,13 @@ public enum LatchMetadataParser {
         case .deferredCount: metadata.deferredCount = nonNegativeInt(value)
         case .driftSec: metadata.driftSec = nonNegativeInt(value)
         case .context: metadata.context = value.isEmpty ? nil : value
+        case .workspaceApp:
+            guard !value.isEmpty, !value.contains(where: \.isWhitespace) else { return }
+            metadata.workspace.add(.app(bundleID: value))
+        case .workspaceSite:
+            guard let url = URL(string: value), ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                  Workspace.normalizedHost(url) != nil else { return }
+            metadata.workspace.add(.site(url: url))
         case .lastLatched: metadata.lastLatched = try? Date(value, strategy: .iso8601)
         }
     }

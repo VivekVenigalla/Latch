@@ -153,9 +153,41 @@ final class LatchMetadataParserTests: XCTestCase {
         XCTAssertNil(LatchMetadataParser.parse("---LATCH---\ndrift_sec: -3").metadata?.driftSec)
     }
 
+    func testWorkspaceLinesRepeat() {
+        let notes = """
+        ---LATCH---
+        duration_sec: 900
+        workspace_app: com.apple.dt.Xcode
+        workspace_app: com.apple.Terminal
+        workspace_site: https://github.com/acme/api/pull/42
+        workspace_site: ftp://files.example.com
+        workspace_app: has space
+        workspace_site: not a url
+        """
+        let workspace = LatchMetadataParser.parse(notes).metadata?.workspace
+        XCTAssertEqual(workspace?.appBundleIDs, ["com.apple.dt.Xcode", "com.apple.Terminal"])
+        XCTAssertEqual(workspace?.siteURLs, [URL(string: "https://github.com/acme/api/pull/42")!])
+    }
+
+    func testWorkspaceSerialisesBeforeLastLatched() {
+        let metadata = LatchMetadata(
+            driftSec: 5,
+            workspace: Workspace([.app(bundleID: "com.apple.dt.Xcode"), .site(url: URL(string: "https://github.com/a")!)]),
+            lastLatched: sampleDate)
+        XCTAssertEqual(LatchMetadataParser.serialize(metadata), """
+        ---LATCH---
+        drift_sec: 5
+        workspace_app: com.apple.dt.Xcode
+        workspace_site: https://github.com/a
+        last_latched: 2026-10-29T14:30:00Z
+        """)
+        XCTAssertFalse(LatchMetadata(workspace: Workspace([.app(bundleID: "x")])).isEmpty)
+    }
+
     func testRoundTrip() {
         let metadata = LatchMetadata(
             durationSec: 1500, elapsedSec: 420, context: "Fix segfault", deferredCount: 3, driftSec: 95,
+            workspace: Workspace([.app(bundleID: "com.apple.Terminal"), .site(url: URL(string: "https://docs.swift.org/x")!)]),
             lastLatched: sampleDate)
         let written = LatchMetadataParser.write(metadata, into: "Some notes")
         let parsed = LatchMetadataParser.parse(written)
