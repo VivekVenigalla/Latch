@@ -28,6 +28,7 @@ final class StatusItemController: NSObject {
     /// Title dropped because the full-width item was hidden.
     private var isCompact = false
     private var retryTimer: Timer?
+    private var visibilityCheck: DispatchWorkItem?
     /// Bolt position forced by the engage animation, or `nil` when the engine drives it.
     private var engageOverride: CGFloat?
     private var engageTimer: Timer?
@@ -63,9 +64,9 @@ final class StatusItemController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.playEngage() }
             .store(in: &cancellables)
-        NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)
+        NotificationCenter.default.publisher(for: NSWindow.didMoveNotification)
             .filter { [weak self] note in (note.object as? NSWindow) === self?.statusItem.button?.window }
-            .sink { [weak self] _ in self?.checkVisibility() }
+            .sink { [weak self] _ in self?.scheduleVisibilityCheck() }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in self?.retryFullWidth() }
@@ -91,8 +92,7 @@ final class StatusItemController: NSObject {
             button.attributedTitle = title
             button.imagePosition = title.length == 0 ? .imageOnly : .imageLeading
             renderedTitle = title
-            // Measure after the status bar has laid out the new width.
-            DispatchQueue.main.async { [weak self] in self?.checkVisibility() }
+            scheduleVisibilityCheck()
         }
 
         button.setAccessibilityLabel(engine.glanceText)
@@ -147,16 +147,27 @@ final class StatusItemController: NSObject {
 
     // MARK: - Staying visible
 
-    /// `false` when macOS isn't showing the item: occluded, or outside the usable menu bar
-    /// area on a notched display (items that don't fit are parked behind the notch).
+    /// `false` when macOS isn't showing the item: not placed on a screen, or outside the usable
+    /// menu bar area on a notched display (items that don't fit are parked behind the notch).
+    ///
+    /// Geometry only: status bar windows never report `.visible` in `occlusionState`, so occlusion
+    /// can't be used here.
     private var isItemVisible: Bool {
         guard let window = statusItem.button?.window, let screen = window.screen else { return false }
-        guard window.occlusionState.contains(.visible) else { return false }
+        let frame = window.frame
+        guard frame.width > 0, frame.height > 0, screen.frame.intersects(frame) else { return false }
         guard let rightOfNotch = screen.auxiliaryTopRightArea else { return true }
         // The auxiliary areas may be screen-local; shift them into global space if so.
         let offset = rightOfNotch.maxX <= screen.frame.width + 0.5 ? screen.frame.minX : 0
-        let frame = window.frame
         return frame.minX >= rightOfNotch.minX + offset - 1 && frame.maxX <= rightOfNotch.maxX + offset + 1
+    }
+
+    /// Measures once the status bar has finished placing the item; mid-layout frames are bogus.
+    private func scheduleVisibilityCheck() {
+        visibilityCheck?.cancel()
+        let check = DispatchWorkItem { [weak self] in self?.checkVisibility() }
+        visibilityCheck = check
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: check)
     }
 
     private func checkVisibility() {
