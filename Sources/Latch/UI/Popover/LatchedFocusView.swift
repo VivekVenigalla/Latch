@@ -58,7 +58,8 @@ struct LatchedFocusView: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if let context = session.task.metadata.context {
+                // While drifting, the OFF TASK banner takes this space so the popover stays ≤ 220pt.
+                if let context = session.task.metadata.context, !engine.isDrifting {
                     RecessedWell {
                         Text("↳ \(context)")
                             .font(LatchFont.meta)
@@ -93,7 +94,8 @@ struct LatchedFocusView: View {
     }
 }
 
-/// `[App Icon] Refocus <AppName> [⌘G]` — becomes an amber `Return to <AppName>` while drifting.
+/// `[App Icon] Refocus <AppName> [⌘G]` — becomes an amber `[App Icon] Return [⌘G]` while
+/// drifting (the icon says where; the full name is in the tooltip).
 private struct RefocusPill: View {
     @EnvironmentObject private var engine: LatchEngine
     let pinned: PinnedApp
@@ -108,7 +110,7 @@ private struct RefocusPill: View {
                         .interpolation(.high)
                         .frame(width: 13, height: 13)
                 }
-                Text("\(urgent ? "Return to" : "Refocus") \(pinned.name)")
+                Text(urgent ? "Return" : "Refocus \(pinned.name)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(urgent ? Tokens.amber : Tokens.silver)
                     .lineLimit(1)
@@ -125,7 +127,7 @@ private struct RefocusPill: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut("g", modifiers: .command)
-        .help("Snap back to \(pinned.name)")
+        .help("Return to \(pinned.name)")
     }
 }
 
