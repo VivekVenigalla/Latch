@@ -62,6 +62,15 @@ final class DriftLedgerTests: XCTestCase {
         XCTAssertEqual(ledger.settledSeconds, 90)
     }
 
+    func testForgivenExcursionNeverCounts() {
+        var ledger = DriftLedger(graceSeconds: 10)
+        ledger.leave(at: t0)
+        ledger.forgiveCurrentExcursion()
+        XCTAssertFalse(ledger.isAway)
+        XCTAssertEqual(ledger.totalDriftSeconds(at: t0.addingTimeInterval(600)), 0)
+        XCTAssertEqual(ledger.episodes, 0)
+    }
+
     func testNegativeGraceClampsToZero() {
         XCTAssertEqual(DriftLedger(graceSeconds: -5).graceSeconds, 0)
     }

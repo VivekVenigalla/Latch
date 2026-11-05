@@ -45,6 +45,17 @@ final class ActiveSessionTests: XCTestCase {
         XCTAssertEqual(session.driftSeconds(at: start.addingTimeInterval(9_999)), 60)
     }
 
+    func testScopeStartsFromTheTaskWorkspaceAndPinnedApp() {
+        let workspace = Workspace([.app(bundleID: "com.apple.Terminal")])
+        let session = ActiveSession(
+            task: TaskCandidate(id: "t", title: "T", metadata: LatchMetadata(workspace: workspace)),
+            requestedSeconds: 60, allocatedSeconds: 60,
+            pinnedApp: PinnedApp(bundleIdentifier: "com.apple.dt.Xcode", name: "Xcode", processIdentifier: 1))
+        XCTAssertEqual(session.scope.workspace, workspace)
+        XCTAssertEqual(session.scope.pinnedBundleID, "com.apple.dt.Xcode")
+        XCTAssertNil(session.scope.pinnedHost)
+    }
+
     func testProgressRemaining() {
         let session = ActiveSession(task: TaskCandidate(id: "t", title: "T"), requestedSeconds: 1000, allocatedSeconds: 1000)
         XCTAssertEqual(session.progressRemaining(remainingSeconds: 1000), 1)

@@ -25,8 +25,10 @@ public struct ActiveSession: Equatable, Sendable {
     public var pinnedApp: PinnedApp?
     /// Set when the session is unlatched; freezes elapsed time for the state-dump gate.
     public var pausedAt: Date?
-    /// Drift Guard: time spent away from `pinnedApp` during this session.
+    /// Drift Guard: time spent away from the session's focus scope.
     public var drift: DriftLedger
+    /// What counts as on-task: the task's workspace plus the pinned app.
+    public var scope: FocusScope
 
     public init(
         task: TaskCandidate,
@@ -45,6 +47,7 @@ public struct ActiveSession: Equatable, Sendable {
         self.clampReason = clampReason
         self.pinnedApp = pinnedApp
         self.drift = DriftLedger(graceSeconds: driftGraceSeconds)
+        self.scope = FocusScope(workspace: task.metadata.workspace, pinnedBundleID: pinnedApp?.bundleIdentifier)
     }
 
     public var isClamped: Bool { clampReason != nil }

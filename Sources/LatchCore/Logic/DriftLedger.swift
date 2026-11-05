@@ -38,6 +38,12 @@ public struct DriftLedger: Equatable, Sendable {
         episodes += 1
     }
 
+    /// Ends the current excursion without counting it — the user declared where they went part
+    /// of the task.
+    public mutating func forgiveCurrentExcursion() {
+        awaySince = nil
+    }
+
     /// Length of the current excursion; 0 while on the pinned app.
     public func currentExcursion(at now: Date) -> TimeInterval {
         awaySince.map { max(0, now.timeIntervalSince($0)) } ?? 0
