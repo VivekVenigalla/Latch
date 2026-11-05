@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkey: GlobalHotkeyManager?
     private var capture: BlindCaptureController?
     private var statusItem: StatusItemController?
+    private var director: DemoDirector?
 
     override init() {
         // Demo mode (a launch argument) runs on sample data and an in-memory ledger.
@@ -27,8 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             autosaveName: DemoMode.isActive ? "LatchDemoStatusItem" : "LatchStatusItem"
         ) { capture.show() }
 
-        if DemoMode.isActive {
-            Task { await engine.bootstrap() }
+        if let scene = DemoMode.scene, let statusItem {
+            let director = DemoDirector(engine: engine, statusItem: statusItem, capture: capture)
+            self.director = director
+            Task { await director.run(scene: scene) }
             return
         }
 
